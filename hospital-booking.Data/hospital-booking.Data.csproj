@@ -7,4 +7,10 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.0-preview2.25289.6" />
+    <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.14.0" />
+  </ItemGroup>
+
 </Project>
