@@ -9,8 +9,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "hospital-booking.Data", "ho
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "hospital-booking.Services", "hospital-booking.Services\hospital-booking.Services.csproj", "{361225B8-9BDE-4A77-9E4D-E0FD06DF7C43}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "hospital-booking.Tests", "hospital-booking.Tests\hospital-booking.Tests.csproj", "{1464126B-B582-48AC-83C4-9423B6BA91F4}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -32,9 +30,5 @@ Global
 		{361225B8-9BDE-4A77-9E4D-E0FD06DF7C43}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{361225B8-9BDE-4A77-9E4D-E0FD06DF7C43}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{361225B8-9BDE-4A77-9E4D-E0FD06DF7C43}.Release|Any CPU.Build.0 = Release|Any CPU
-		{1464126B-B582-48AC-83C4-9423B6BA91F4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{1464126B-B582-48AC-83C4-9423B6BA91F4}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{1464126B-B582-48AC-83C4-9423B6BA91F4}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{1464126B-B582-48AC-83C4-9423B6BA91F4}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

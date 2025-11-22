@@ -2,47 +2,46 @@ using System;
 using System.Threading.Tasks;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
+using hospital_booking.Data.Settings;
 using hospital_booking.Data.Results;
 
 namespace hospital_booking.Data.Repositories.Doctor.Commands
 {
     public static class DeleteDoctorCommand
     {
-        private const string DeleteDoctorSql = @"
-            UPDATE doctors 
-            SET is_active = 0, updated_at = GETDATE()
-            WHERE id = @DoctorId AND is_active = 1";
+        private const string DeleteSql = @"
+DELETE FROM dbo.doctors
+WHERE doctor_id = @DoctorId;
+";
 
-        public static async Task<OperationResult<bool>> ExecuteAsync(
-            int doctorId,
-            ILogger logger,
-            string connectionString)
+        public static async Task<OperationResult<bool>> ExecuteAsync(int doctorId, ILogger logger)
         {
-            logger.LogInformation("Deleting doctor: {Id}", doctorId);
+            if (doctorId <= 0)
+            {
+                logger.LogError("DeleteDoctorCommand received invalid id: {DoctorId}", doctorId);
+                return OperationResult<bool>.Failure("Invalid doctor id");
+            }
 
             try
             {
-                using var connection = new SqlConnection(connectionString);
+                using var connection = new SqlConnection(DatabaseSettings.ConnectionString);
                 await connection.OpenAsync();
 
-                using var command = new SqlCommand(DeleteDoctorSql, connection);
+                using var command = new SqlCommand(DeleteSql, connection);
                 command.Parameters.AddWithValue("@DoctorId", doctorId);
 
-                int rowsAffected = await command.ExecuteNonQueryAsync();
-
-                if (rowsAffected == 0)
+                var rows = await command.ExecuteNonQueryAsync();
+                if (rows == 0)
                 {
-                    logger.LogWarning("Doctor not found for deletion: {Id}", doctorId);
                     return OperationResult<bool>.Failure("Doctor not found");
                 }
 
-                logger.LogInformation("Doctor deleted successfully: {Id}", doctorId);
                 return OperationResult<bool>.Success(true, "Doctor deleted successfully");
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Error deleting doctor: {Id}", doctorId);
-                return OperationResult<bool>.Failure("Deletion failed");
+                logger.LogError(ex, "Error deleting doctor: {Error}", ex.Message);
+                return OperationResult<bool>.Failure("Database operation failed");
             }
         }
     }

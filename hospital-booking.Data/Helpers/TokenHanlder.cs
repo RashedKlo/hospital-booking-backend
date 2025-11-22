@@ -26,10 +26,10 @@ namespace hospital_booking.Data.Helpers
             rng.GetBytes(randomBytes);
             return Convert.ToBase64String(randomBytes);
         }
-         public string GenerateAccessToken(int patientId, string email, string fullName)
+        public string GenerateAccessToken(int patientId, string email, string fullName)
         {
             var tokenHandler = new JwtSecurityTokenHandler();
-            var key = Encoding.UTF8.GetBytes(_jwtSettings.SecretKey);
+            var key = Encoding.UTF8.GetBytes(_jwtSettings.SigningKey);
 
             var claims = new[]
             {
@@ -54,8 +54,5 @@ namespace hospital_booking.Data.Helpers
             var token = tokenHandler.CreateToken(tokenDescriptor);
             return tokenHandler.WriteToken(token);
         }
-
-
-
     }
 }

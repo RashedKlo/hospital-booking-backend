@@ -2,67 +2,64 @@ using System;
 using System.Threading.Tasks;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
-using hospital_booking.Data.DTOs.Patient;
-using hospital_booking.Data.Repositories.Patient.Helpers;
-using hospital_booking.Data.Results;
 using hospital_booking.Data.Settings;
+using hospital_booking.Data.DTOs.Patient;
+using hospital_booking.Data.Results;
+using hospital_booking.Data.Repositories.Patient.Helpers;
 
 namespace hospital_booking.Data.Repositories.Patient.Commands
 {
     public static class UpdatePatientCommand
     {
-        private const string UpdatePatientSql = @"
-            UPDATE patients 
-            SET full_name = @FullName,
-                phone = @Phone,
-                date_of_birth = @DateOfBirth,
-                updated_at = GETDATE()
-            OUTPUT INSERTED.*
-            WHERE id = @PatientId AND is_active = 1";
+        private const string UpdateSql = @"
+UPDATE dbo.patients
+SET user_id = @UserId,
+    full_name = @FullName,
+    birthDate = @BirthDate,
+    gender = @Gender,
+    notes = @Notes
+WHERE patient_id = @PatientId;
 
-        public static async Task<OperationResult<PatientProfileDto>> ExecuteAsync(
-            int patientId,
-            PatientUpdateDto dto,
-            ILogger logger)
+SELECT patient_id, user_id, full_name, birthDate, gender, notes
+FROM dbo.patients
+WHERE patient_id = @PatientId;
+";
+
+        public static async Task<OperationResult<PatientDto>> ExecuteAsync(int patientId, PatientDto dto, ILogger logger)
         {
-            logger.LogInformation("Updating patient: {PatientId}", patientId);
+            if (dto == null)
+            {
+                logger.LogError("UpdatePatientCommand received null dto");
+                return OperationResult<PatientDto>.Failure("Patient data is required");
+            }
 
             try
             {
                 using var connection = new SqlConnection(DatabaseSettings.ConnectionString);
                 await connection.OpenAsync();
 
-                using var command = CreateCommand(connection, patientId, dto);
-                using var reader = await command.ExecuteReaderAsync();
+                using var command = new SqlCommand(UpdateSql, connection);
+                command.Parameters.AddWithValue("@PatientId", patientId);
+                command.Parameters.AddWithValue("@UserId", (object?)dto.UserId ?? DBNull.Value);
+                command.Parameters.AddWithValue("@FullName", dto.FullName ?? string.Empty);
+                command.Parameters.AddWithValue("@BirthDate", (object?)dto.BirthDate ?? DBNull.Value);
+                command.Parameters.AddWithValue("@Gender", dto.Gender ?? string.Empty);
+                command.Parameters.AddWithValue("@Notes", dto.Notes ?? string.Empty);
 
+                using var reader = await command.ExecuteReaderAsync();
                 if (!await reader.ReadAsync())
                 {
-                    logger.LogWarning("Patient not found for update: {PatientId}", patientId);
-                    return OperationResult<PatientProfileDto>.Failure("Patient not found");
+                    return OperationResult<PatientDto>.Failure("Patient not found");
                 }
 
-                var patient = PatientMapper.MapPatientFromReader(reader);
-                var profileDto = PatientMapper.MapToProfileDto(patient);
-
-                logger.LogInformation("Patient updated successfully: {PatientId}", patientId);
-
-                return OperationResult<PatientProfileDto>.Success(profileDto, "Patient updated successfully");
+                var patient = PatientMapper.MapFromReader(reader);
+                return OperationResult<PatientDto>.Success(patient, "Patient updated successfully");
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Error updating patient: {PatientId}", patientId);
-                return OperationResult<PatientProfileDto>.Failure("Update failed due to system error");
+                logger.LogError(ex, "Error updating patient: {Error}", ex.Message);
+                return OperationResult<PatientDto>.Failure("Database operation failed");
             }
-        }
-
-        private static SqlCommand CreateCommand(SqlConnection connection, int patientId, PatientUpdateDto dto)
-        {
-            var command = new SqlCommand(UpdatePatientSql, connection);
-            command.Parameters.AddWithValue("@PatientId", patientId);
-            command.Parameters.AddWithValue("@FullName", dto.FullName);
-            command.Parameters.AddWithValue("@Phone", dto.Phone);
-            command.Parameters.AddWithValue("@DateOfBirth", dto.DateOfBirth);
-            return command;
         }
     }
 }
