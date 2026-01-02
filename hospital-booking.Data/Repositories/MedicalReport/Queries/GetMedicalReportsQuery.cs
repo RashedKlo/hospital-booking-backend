@@ -5,6 +5,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using hospital_booking.Data.Settings;
 using hospital_booking.Data.DTOs.MedicalReport;
+using hospital_booking.Data.DTOs.Admin;
 using hospital_booking.Data.Results;
 using hospital_booking.Data.Repositories.MedicalReport.Helpers;
 
@@ -12,79 +13,108 @@ namespace hospital_booking.Data.Repositories.MedicalReport.Queries
 {
     public class GetMedicalReportsQuery
     {
-        private const string GetMedicalReportsSql = @"
-    SELECT
-        report_id,
-        appointment_id,
-        diagnosis,
-        notes,
-        required_tests
-    FROM dbo.medical_reports
-    ORDER BY report_id
-    OFFSET @Offset ROWS
-    FETCH NEXT @Limit ROWS ONLY;
-    ";
-
-        public static async Task<OperationResult<List<MedicalReportDto>>> ExecuteAsync(
-            int page,
-            int limit,
+        public static async Task<OperationResult<MedicalReportsDto>> ExecuteAsync(
+            MedicalReportsRequestDto requestDto, 
             ILogger logger)
         {
-            if (page < 1 || limit < 1)
+            if (requestDto == null || requestDto.Page <= 0 || requestDto.Limit <= 0)
             {
-                logger.LogError("GetMedicalReportsQuery received invalid pagination parameters - Page: {Page}, Limit: {Limit}", page, limit);
-                return OperationResult<List<MedicalReportDto>>.Failure("Invalid pagination parameters");
+                logger.LogError("GetMedicalReportsQuery received invalid params");
+                return OperationResult<MedicalReportsDto>.Failure("Invalid parameters");
             }
 
-            logger.LogInformation("Executing getting medical reports - Page: {Page}, Limit: {Limit}", page, limit);
-
-            try
+            try 
             {
+                var (sql, parameters) = BuildQuery(requestDto);
+
                 using var connection = new SqlConnection(DatabaseSettings.ConnectionString);
                 await connection.OpenAsync();
 
-                using var command = CreateCommand(connection, page, limit);
-                using var reader = await command.ExecuteReaderAsync();
+                using var command = new SqlCommand(sql, connection);
+                foreach (var param in parameters)
+                {
+                    command.Parameters.AddWithValue(param.Key, param.Value);
+                }
 
-                return await ProcessResultAsync(reader, logger, page, limit);
-            }
-            catch (SqlException ex)
-            {
-                logger.LogError(ex, "Database error during getting medical reports. Error: {Error}", ex.Message);
-                return OperationResult<List<MedicalReportDto>>.Failure("Database operation failed");
+                using var reader = await command.ExecuteReaderAsync();
+                
+                int totalCount = 0;
+                if (await reader.ReadAsync())
+                {
+                    totalCount = reader.GetInt32(0);
+                }
+
+                await reader.NextResultAsync();
+
+                var reports = new List<MedicalReportDto>();
+                while (await reader.ReadAsync())
+                {
+                    reports.Add(MedicalReportMapper.MapFromReader(reader));
+                }
+
+                var totalPages = (int)Math.Ceiling((double)totalCount / requestDto.Limit);
+                var resultDto = new MedicalReportsDto
+                {
+                    Reports = reports,
+                    Pagination = new PaginationDto
+                    {
+                        Page = requestDto.Page,
+                        PageSize = requestDto.Limit,
+                        TotalCount = totalCount,
+                        TotalPages = totalPages,
+                        HasPrevious = requestDto.Page > 1,
+                        HasNext = requestDto.Page < totalPages
+                    }
+                };
+
+                return OperationResult<MedicalReportsDto>.Success(resultDto, "Medical reports retrieved successfully");
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Unexpected error during getting medical reports");
-                return OperationResult<List<MedicalReportDto>>.Failure("Getting medical reports failed due to system error");
+                logger.LogError(ex, "Error retrieving medical reports: {Error}", ex.Message);
+                return OperationResult<MedicalReportsDto>.Failure("Database operation failed");
             }
         }
 
-        private static SqlCommand CreateCommand(SqlConnection connection, int page, int limit)
+        private static (string sql, Dictionary<string, object> parameters) BuildQuery(MedicalReportsRequestDto request)
         {
-            var command = new SqlCommand(GetMedicalReportsSql, connection);
-            command.Parameters.AddWithValue("@Offset", (page - 1) * limit);
-            command.Parameters.AddWithValue("@Limit", limit);
-            return command;
-        }
+            var whereConditions = new List<string>();
+            var parameters = new Dictionary<string, object>();
 
-        private static async Task<OperationResult<List<MedicalReportDto>>> ProcessResultAsync(
-            SqlDataReader reader,
-            ILogger logger,
-            int page,
-            int limit)
-        {
-            var medicalReports = new List<MedicalReportDto>();
+            var offset = (request.Page - 1) * request.Limit;
+            parameters.Add("@Offset", offset);
+            parameters.Add("@Limit", request.Limit);
 
-            while (await reader.ReadAsync())
+            if (!string.IsNullOrWhiteSpace(request.SearchQuery))
             {
-                medicalReports.Add(MedicalReportMapper.MapFromReader(reader));
+                var search = $"%{request.SearchQuery.Trim()}%";
+                whereConditions.Add("(mr.diagnosis LIKE @Search OR mr.notes LIKE @Search OR mr.required_tests LIKE @Search)");
+                parameters.Add("@Search", search);
             }
 
-            logger.LogInformation("Retrieved {Count} medical reports - Page: {Page}, Limit: {Limit}",
-                medicalReports.Count, page, limit);
+            var whereClause = whereConditions.Count > 0 
+                ? "WHERE " + string.Join(" AND ", whereConditions)
+                : "";
 
-            return OperationResult<List<MedicalReportDto>>.Success(medicalReports, "Medical reports retrieved successfully");
+            var sql = $@"
+-- Count
+SELECT COUNT(*) 
+FROM dbo.medical_reports mr
+INNER JOIN dbo.appointments a ON mr.appointment_id = a.appointment_id
+{whereClause};
+
+-- Data
+SELECT 
+    mr.report_id, mr.appointment_id, mr.diagnosis, mr.notes, mr.required_tests,
+    a.appointment_id, a.patient_id, a.doctor_id, a.appointment_time, a.reason, a.status
+FROM dbo.medical_reports mr
+INNER JOIN dbo.appointments a ON mr.appointment_id = a.appointment_id
+{whereClause}
+ORDER BY mr.report_id
+OFFSET @Offset ROWS
+FETCH NEXT @Limit ROWS ONLY;
+";
+            return (sql, parameters);
         }
     }
 }

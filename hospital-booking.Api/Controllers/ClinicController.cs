@@ -2,6 +2,9 @@ using Microsoft.AspNetCore.Mvc;
 using hospital_booking.Data.DTOs.Clinic;
 using hospital_booking.Services.Interfaces;
 using hospital_booking.Api.Responses;
+using System.Linq; // For ToList()
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace hospital_booking.Api.Controllers
 {
@@ -26,41 +29,42 @@ namespace hospital_booking.Api.Controllers
         {
             _logger.LogInformation("Getting clinic by ID: {ClinicId}", id);
 
-            var result = await _clinicService.GetClinicAsync(id);
-            if (!result.IsSuccess)
+            var clinicDetails = await _clinicService.GetClinicDetailsAsync(id);
+            
+            if (!clinicDetails.IsSuccess)
             {
-                _logger.LogWarning("Failed to get clinic {ClinicId}: {Message}", id, result.Message);
-                return NotFound(new ErrorResponse(result.Message, result.Errors.ToList()));
+                _logger.LogWarning("Failed to get clinic {ClinicId}: {Message}", id, clinicDetails.Message);
+                return NotFound(new ErrorResponse(clinicDetails.Message, clinicDetails.Errors.ToList()));
             }
 
-            return Ok(new SuccessResponse<ClinicDto>(result.Data!, result.Message));
+            return Ok(new SuccessResponse<ClinicDetailsDto>(clinicDetails.Data!, clinicDetails.Message));
         }
 
         /// <summary>
-        /// Get all clinics with pagination
+        /// Get all clinics with filtering and pagination
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> GetClinics([FromQuery] int page = 1, [FromQuery] int limit = 10)
+        public async Task<IActionResult> GetClinics([FromQuery] ClinicsRequestDto requestDto)
         {
-            _logger.LogInformation("Getting clinics - Page: {Page}, Limit: {Limit}", page, limit);
+            _logger.LogInformation("Getting clinics - Page: {Page}, Limit: {Limit}", requestDto.Page, requestDto.Limit);
 
-            var result = await _clinicService.GetClinicsAsync(page, limit);
-            if (!result.IsSuccess)
+            var clinics = await _clinicService.GetClinicsAsync(requestDto);
+            if (!clinics.IsSuccess)
             {
-                _logger.LogWarning("Failed to get clinics: {Message}", result.Message);
-                return BadRequest(new ErrorResponse(result.Message, result.Errors.ToList()));
+                _logger.LogWarning("Failed to get clinics: {Message}", clinics.Message);
+                return BadRequest(new ErrorResponse(clinics.Message, clinics.Errors.ToList()));
             }
 
-            return Ok(new SuccessResponse<List<ClinicDto>>(result.Data!, result.Message));
+            return Ok(new SuccessResponse<ClinicsDto>(clinics.Data!, clinics.Message));
         }
 
         /// <summary>
         /// Create a new clinic
         /// </summary>
         [HttpPost]
-        public async Task<IActionResult> CreateClinic([FromBody] ClinicDto dto)
+        public async Task<IActionResult> CreateClinic([FromBody] ClinicAddDto dto)
         {
-            _logger.LogInformation("Creating clinic: {Title}", dto.Title);
+            _logger.LogInformation("Creating clinic: {Name}", dto.Name);
 
             var result = await _clinicService.CreateClinicAsync(dto);
             if (!result.IsSuccess)
@@ -69,15 +73,15 @@ namespace hospital_booking.Api.Controllers
                 return BadRequest(new ErrorResponse(result.Message, result.Errors.ToList()));
             }
 
-            _logger.LogInformation("Clinic created successfully - ClinicId: {ClinicId}", result.Data?.ClinicId);
-            return CreatedAtAction(nameof(GetClinic), new { id = result.Data?.ClinicId }, new SuccessResponse<ClinicDto>(result.Data!, result.Message));
+            _logger.LogInformation("Clinic created successfully");
+            return Ok(new SuccessResponse<bool>(result.Data, result.Message));
         }
 
         /// <summary>
         /// Update an existing clinic
         /// </summary>
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateClinic(int id, [FromBody] ClinicDto dto)
+        public async Task<IActionResult> UpdateClinic(int id, [FromBody] ClinicUpdateDto dto)
         {
             _logger.LogInformation("Updating clinic: {ClinicId}", id);
 

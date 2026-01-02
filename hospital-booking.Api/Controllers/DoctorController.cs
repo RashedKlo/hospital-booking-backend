@@ -2,6 +2,9 @@ using Microsoft.AspNetCore.Mvc;
 using hospital_booking.Data.DTOs.Doctor;
 using hospital_booking.Services.Interfaces;
 using hospital_booking.Api.Responses;
+using System.Linq; // For ToList()
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace hospital_booking.Api.Controllers
 {
@@ -37,30 +40,30 @@ namespace hospital_booking.Api.Controllers
         }
 
         /// <summary>
-        /// Get all doctors with pagination
+        /// Get all doctors with filtering and pagination
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> GetDoctors([FromQuery] int page = 1, [FromQuery] int limit = 10)
+        public async Task<IActionResult> GetDoctors([FromQuery] DoctorsRequestDto requestDto)
         {
-            _logger.LogInformation("Getting doctors - Page: {Page}, Limit: {Limit}", page, limit);
+            _logger.LogInformation("Getting doctors - Page: {Page}, Limit: {Limit}", requestDto.Page, requestDto.Limit);
 
-            var result = await _doctorService.GetDoctorsAsync(page, limit);
+            var result = await _doctorService.GetDoctorsAsync(requestDto);
             if (!result.IsSuccess)
             {
                 _logger.LogWarning("Failed to get doctors: {Message}", result.Message);
                 return BadRequest(new ErrorResponse(result.Message, result.Errors.ToList()));
             }
 
-            return Ok(new SuccessResponse<List<DoctorDto>>(result.Data!, result.Message));
+            return Ok(new SuccessResponse<DoctorsDto>(result.Data!, result.Message));
         }
 
         /// <summary>
         /// Create a new doctor
         /// </summary>
         [HttpPost]
-        public async Task<IActionResult> CreateDoctor([FromBody] DoctorDto dto)
+        public async Task<IActionResult> CreateDoctor([FromBody] DoctorAddDto dto)
         {
-            _logger.LogInformation("Creating doctor: {FullName}", dto.FullName);
+            _logger.LogInformation("Creating doctor for ClinicId: {ClinicId}, Name: {Name}", dto.ClinicId, dto.FullName);
 
             var result = await _doctorService.CreateDoctorAsync(dto);
             if (!result.IsSuccess)
@@ -69,15 +72,15 @@ namespace hospital_booking.Api.Controllers
                 return BadRequest(new ErrorResponse(result.Message, result.Errors.ToList()));
             }
 
-            _logger.LogInformation("Doctor created successfully - DoctorId: {DoctorId}", result.Data?.DoctorId);
-            return CreatedAtAction(nameof(GetDoctor), new { id = result.Data?.DoctorId }, new SuccessResponse<DoctorDto>(result.Data!, result.Message));
+            _logger.LogInformation("Doctor created successfully");
+            return Ok(new SuccessResponse<bool>(result.Data, result.Message));
         }
 
         /// <summary>
         /// Update an existing doctor
         /// </summary>
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateDoctor(int id, [FromBody] DoctorDto dto)
+        public async Task<IActionResult> UpdateDoctor(int id, [FromBody] DoctorUpdateDto dto)
         {
             _logger.LogInformation("Updating doctor: {DoctorId}", id);
 

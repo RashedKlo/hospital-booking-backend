@@ -1,4 +1,5 @@
 using System;
+using hospital_booking.Data.DTOs.User;
 
 namespace hospital_booking.Data.DTOs.Patient
 {
@@ -8,7 +9,9 @@ namespace hospital_booking.Data.DTOs.Patient
         public int? UserId { get; set; }
         public string FullName { get; set; } = string.Empty;
         public DateTime? BirthDate { get; set; }
-        public string Gender { get; set; } = string.Empty;
-        public string Notes { get; set; } = string.Empty;
+        public string? Gender { get; set; }
+        public string? Notes { get; set; }
+
+        public UserDto? User { get; set; }
     }
 }

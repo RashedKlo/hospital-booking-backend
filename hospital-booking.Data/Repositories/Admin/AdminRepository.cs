@@ -19,12 +19,12 @@ namespace hospital_booking.Data.Repositories.Admin
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public async Task<OperationResult<AdminDto>> CreateAdminAsync(AdminDto dto)
+        public async Task<OperationResult<AdminDto>> CreateAdminAsync(AdminAddDto dto)
         {
             return await CreateAdminCommand.ExecuteAsync(dto, _logger);
         }
 
-        public async Task<OperationResult<AdminDto>> UpdateAdminAsync(int adminId, AdminDto dto)
+        public async Task<OperationResult<AdminDto>> UpdateAdminAsync(int adminId, AdminUpdateDto dto)
         {
             return await UpdateAdminCommand.ExecuteAsync(adminId, dto, _logger);
         }
@@ -39,9 +39,19 @@ namespace hospital_booking.Data.Repositories.Admin
             return await GetAdminQuery.ExecuteAsync(adminId, _logger);
         }
 
-        public async Task<OperationResult<List<AdminDto>>> GetAdminsAsync(int page, int limit)
+        public async Task<OperationResult<AdminsDto>> GetAdminsAsync(AdminsRequestDto dto)
         {
-            return await GetAdminsQuery.ExecuteAsync(page, limit, _logger);
+            return await GetAdminsQuery.ExecuteAsync(dto, _logger);
+        }
+
+        public async Task<OperationResult<AdminDto>> GetAdminByEmailAsync(string email)
+        {
+            return await GetAdminByEmailQuery.ExecuteAsync(email, _logger);
+        }
+
+        public async Task<OperationResult<AdminDto>> GetAdminByNameAsync(string fullName)
+        {
+            return await GetAdminByNameQuery.ExecuteAsync(fullName, _logger);
         }
     }
 }

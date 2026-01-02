@@ -40,25 +40,25 @@ namespace hospital_booking.Api.Controllers
         /// Get all admins with pagination
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> GetAdmins([FromQuery] int page = 1, [FromQuery] int limit = 10)
+        public async Task<IActionResult> GetAdmins([FromQuery] AdminsRequestDto requestDto)
         {
-            _logger.LogInformation("Getting admins - Page: {Page}, Limit: {Limit}", page, limit);
+            _logger.LogInformation("Getting admins - Page: {Page}, Limit: {Limit}", requestDto.Page, requestDto.Limit);
 
-            var result = await _adminService.GetAdminsAsync(page, limit);
+            var result = await _adminService.GetAdminsAsync(requestDto);
             if (!result.IsSuccess)
             {
                 _logger.LogWarning("Failed to get admins: {Message}", result.Message);
                 return BadRequest(new ErrorResponse(result.Message, result.Errors.ToList()));
             }
 
-            return Ok(new SuccessResponse<List<AdminDto>>(result.Data!, result.Message));
+            return Ok(new SuccessResponse<AdminsDto>(result.Data!, result.Message));
         }
 
         /// <summary>
         /// Create a new admin
         /// </summary>
         [HttpPost]
-        public async Task<IActionResult> CreateAdmin([FromBody] AdminDto dto)
+        public async Task<IActionResult> CreateAdmin([FromBody] AdminAddDto dto)
         {
             _logger.LogInformation("Creating admin: {Email}", dto.Email);
 
@@ -77,7 +77,7 @@ namespace hospital_booking.Api.Controllers
         /// Update an existing admin
         /// </summary>
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateAdmin(int id, [FromBody] AdminDto dto)
+        public async Task<IActionResult> UpdateAdmin(int id, [FromBody] AdminUpdateDto dto)
         {
             _logger.LogInformation("Updating admin: {AdminId}", id);
 

@@ -2,6 +2,9 @@ using Microsoft.AspNetCore.Mvc;
 using hospital_booking.Data.DTOs.MedicalReport;
 using hospital_booking.Services.Interfaces;
 using hospital_booking.Api.Responses;
+using System.Linq; // For ToList()
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace hospital_booking.Api.Controllers
 {
@@ -37,46 +40,28 @@ namespace hospital_booking.Api.Controllers
         }
 
         /// <summary>
-        /// Get all medical reports with pagination
+        /// Get all medical reports with filtering and pagination
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> GetMedicalReports([FromQuery] int page = 1, [FromQuery] int limit = 10)
+        public async Task<IActionResult> GetMedicalReports([FromQuery] MedicalReportsRequestDto requestDto)
         {
-            _logger.LogInformation("Getting medical reports - Page: {Page}, Limit: {Limit}", page, limit);
+            _logger.LogInformation("Getting medical reports - Page: {Page}, Limit: {Limit}", requestDto.Page, requestDto.Limit);
 
-            var result = await _medicalReportService.GetMedicalReportsAsync(page, limit);
+            var result = await _medicalReportService.GetMedicalReportsAsync(requestDto);
             if (!result.IsSuccess)
             {
                 _logger.LogWarning("Failed to get medical reports: {Message}", result.Message);
                 return BadRequest(new ErrorResponse(result.Message, result.Errors.ToList()));
             }
 
-            return Ok(new SuccessResponse<List<MedicalReportDto>>(result.Data!, result.Message));
-        }
-
-        /// <summary>
-        /// Get medical reports by appointment ID
-        /// </summary>
-        [HttpGet("appointment/{appointmentId}")]
-        public async Task<IActionResult> GetMedicalReportsByAppointment(int appointmentId)
-        {
-            _logger.LogInformation("Getting medical reports by AppointmentId: {AppointmentId}", appointmentId);
-
-            var result = await _medicalReportService.GetMedicalReportsByAppointmentAsync(appointmentId);
-            if (!result.IsSuccess)
-            {
-                _logger.LogWarning("Failed to get medical reports for appointment {AppointmentId}: {Message}", appointmentId, result.Message);
-                return BadRequest(new ErrorResponse(result.Message, result.Errors.ToList()));
-            }
-
-            return Ok(new SuccessResponse<List<MedicalReportDto>>(result.Data!, result.Message));
+            return Ok(new SuccessResponse<MedicalReportsDto>(result.Data!, result.Message));
         }
 
         /// <summary>
         /// Create a new medical report
         /// </summary>
         [HttpPost]
-        public async Task<IActionResult> CreateMedicalReport([FromBody] MedicalReportDto dto)
+        public async Task<IActionResult> CreateMedicalReport([FromBody] MedicalReportAddDto dto)
         {
             _logger.LogInformation("Creating medical report for AppointmentId: {AppointmentId}", dto.AppointmentId);
 
@@ -87,15 +72,15 @@ namespace hospital_booking.Api.Controllers
                 return BadRequest(new ErrorResponse(result.Message, result.Errors.ToList()));
             }
 
-            _logger.LogInformation("Medical report created successfully - ReportId: {ReportId}", result.Data?.ReportId);
-            return CreatedAtAction(nameof(GetMedicalReport), new { id = result.Data?.ReportId }, new SuccessResponse<MedicalReportDto>(result.Data!, result.Message));
+            _logger.LogInformation("Medical report created successfully");
+            return Ok(new SuccessResponse<bool>(result.Data, result.Message));
         }
 
         /// <summary>
         /// Update an existing medical report
         /// </summary>
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateMedicalReport(int id, [FromBody] MedicalReportDto dto)
+        public async Task<IActionResult> UpdateMedicalReport(int id, [FromBody] MedicalReportUpdateDto dto)
         {
             _logger.LogInformation("Updating medical report: {ReportId}", id);
 

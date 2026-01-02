@@ -1,12 +1,12 @@
 -- Create database if it doesn't exist
-IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = 'hospital_booking')
+IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = 'HospitalBookingDb')
 BEGIN
-    CREATE DATABASE hospital_booking;
+    CREATE DATABASE HospitalBookingDb;
 END;
 GO
 
 -- Use the database
-USE hospital_booking;
+USE HospitalBookingDb;
 GO
 
 -- Create users table if it doesn't exist
@@ -29,10 +29,20 @@ BEGIN
     CREATE TABLE dbo.clinics
     (
         clinic_id INT IDENTITY(1,1) PRIMARY KEY,
-        title NVARCHAR(250) NOT NULL,
+        name NVARCHAR(250) NOT NULL,
         description NVARCHAR(MAX) NULL,
+        address NVARCHAR(500) NOT NULL,
         phone NVARCHAR(20) NOT NULL,
-        address NVARCHAR(500) NOT NULL
+        email NVARCHAR(250) NULL,
+        website NVARCHAR(500) NULL,
+        image_url NVARCHAR(1000) NULL,
+        rating FLOAT DEFAULT(0) NULL,
+        review_count INT DEFAULT(0) NULL,
+        opening_hours NVARCHAR(500) NULL,
+        latitude FLOAT NULL,
+        longitude FLOAT NULL,
+        created_at DATETIME2 DEFAULT(GETDATE()) NOT NULL,
+        updated_at DATETIME2 DEFAULT(GETDATE()) NOT NULL
     );
 END;
 GO
@@ -61,11 +71,15 @@ BEGIN
     (
         admin_id INT IDENTITY(1,1) PRIMARY KEY,
         full_name NVARCHAR(250) NOT NULL,
-        email NVARCHAR(250) NOT NULL UNIQUE,
-        password NVARCHAR(250) NULL,
+        email NVARCHAR(250) NOT NULL,
         role NVARCHAR(100) NOT NULL,
-        is_active BIT DEFAULT(1) NOT NULL
+        phone NVARCHAR(50) NULL,
+        is_active BIT DEFAULT(1) NOT NULL,
+        created_at DATETIME2 DEFAULT(GETDATE()) NOT NULL,
+        updated_at DATETIME2 DEFAULT(GETDATE()) NOT NULL
     );
+
+    CREATE INDEX IX_Admins_IsActive ON dbo.admins(is_active);
 END;
 GO
 

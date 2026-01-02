@@ -5,7 +5,6 @@ using Microsoft.Extensions.Logging;
 using hospital_booking.Data.Settings;
 using hospital_booking.Data.DTOs.Doctor;
 using hospital_booking.Data.Results;
-using hospital_booking.Data.Repositories.Doctor.Helpers;
 
 namespace hospital_booking.Data.Repositories.Doctor.Commands
 {
@@ -13,16 +12,15 @@ namespace hospital_booking.Data.Repositories.Doctor.Commands
     {
         private const string CreateSql = @"
 INSERT INTO dbo.doctors (clinic_id, full_name, bio, phone, is_active, experience_years)
-OUTPUT inserted.doctor_id, inserted.clinic_id, inserted.full_name, inserted.bio, inserted.phone, inserted.is_active, inserted.experience_years
-VALUES (@ClinicId, @FullName, @Bio, @Phone, @IsActive, @ExperienceYears);
+VALUES (@ClinicId, @FullName, @Bio, @Phone, 1, @ExperienceYears);
 ";
 
-        public static async Task<OperationResult<DoctorDto>> ExecuteAsync(DoctorDto dto, ILogger logger)
+        public static async Task<OperationResult<bool>> ExecuteAsync(DoctorAddDto dto, ILogger logger)
         {
             if (dto == null)
             {
                 logger.LogError("CreateDoctorCommand received null dto");
-                return OperationResult<DoctorDto>.Failure("Doctor data is required");
+                return OperationResult<bool>.Failure("Doctor data is required");
             }
 
             try
@@ -32,25 +30,22 @@ VALUES (@ClinicId, @FullName, @Bio, @Phone, @IsActive, @ExperienceYears);
 
                 using var command = new SqlCommand(CreateSql, connection);
                 command.Parameters.AddWithValue("@ClinicId", dto.ClinicId);
-                command.Parameters.AddWithValue("@FullName", dto.FullName ?? string.Empty);
-                command.Parameters.AddWithValue("@Bio", dto.Bio ?? string.Empty);
-                command.Parameters.AddWithValue("@Phone", dto.Phone ?? string.Empty);
-                command.Parameters.AddWithValue("@IsActive", dto.IsActive);
+                command.Parameters.AddWithValue("@FullName", dto.FullName);
+                command.Parameters.AddWithValue("@Bio", (object?)dto.Bio ?? DBNull.Value);
+                command.Parameters.AddWithValue("@Phone", (object?)dto.Phone ?? DBNull.Value);
                 command.Parameters.AddWithValue("@ExperienceYears", dto.ExperienceYears);
 
-                using var reader = await command.ExecuteReaderAsync();
-                if (!await reader.ReadAsync())
+                var rows = await command.ExecuteNonQueryAsync();
+                if (rows > 0)
                 {
-                    return OperationResult<DoctorDto>.Failure("Doctor creation returned no result");
+                    return OperationResult<bool>.Success(true, "Doctor created successfully");
                 }
-
-                var doctor = DoctorMapper.MapFromReader(reader);
-                return OperationResult<DoctorDto>.Success(doctor, "Doctor created successfully");
+                return OperationResult<bool>.Failure("Failed to create doctor");
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Error creating doctor: {Error}", ex.Message);
-                return OperationResult<DoctorDto>.Failure("Database operation failed");
+                return OperationResult<bool>.Failure("Database operation failed");
             }
         }
     }

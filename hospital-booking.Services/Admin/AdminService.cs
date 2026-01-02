@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using hospital_booking.Data.DTOs.Admin;
 using hospital_booking.Data.Interfaces;
@@ -22,94 +21,82 @@ namespace hospital_booking.Services.Admin
 
         public async Task<OperationResult<AdminDto>> GetAdminAsync(int adminId)
         {
+            if (adminId <= 0)
+            {
+                return OperationResult<AdminDto>.Failure("Invalid admin ID");
+            }
+            
             _logger.LogInformation("Fetching admin by ID: {AdminId}", adminId);
-
-            var result = await _adminRepository.GetAdminAsync(adminId);
-
-            if (!result.IsSuccess)
-            {
-                _logger.LogWarning("Failed to fetch admin {AdminId}: {Message}", adminId, result.Message);
-                return OperationResult<AdminDto>.Failure(result.Message);
-            }
-
-            _logger.LogInformation("Admin fetched successfully - AdminId: {AdminId}", result.Data?.AdminId);
-            return OperationResult<AdminDto>.Success(result.Data!, result.Message);
+            return await _adminRepository.GetAdminAsync(adminId);
         }
 
-        public async Task<OperationResult<List<AdminDto>>> GetAdminsAsync(int page, int limit)
+        public async Task<OperationResult<AdminDto>> GetAdminByEmailAsync(string email)
         {
-            _logger.LogInformation("Fetching admins - Page: {Page}, Limit: {Limit}", page, limit);
-
-            var result = await _adminRepository.GetAdminsAsync(page, limit);
-
-            if (!result.IsSuccess)
+            if (string.IsNullOrWhiteSpace(email))
             {
-                _logger.LogWarning("Failed to fetch admins: {Message}", result.Message);
-                return OperationResult<List<AdminDto>>.Failure(result.Message);
+                return OperationResult<AdminDto>.Failure("Email cannot be empty");
             }
 
-            _logger.LogInformation("Fetched {Count} admins successfully", result.Data?.Count ?? 0);
-            return OperationResult<List<AdminDto>>.Success(result.Data!, result.Message);
+            _logger.LogInformation("Fetching admin by email: {Email}", email);
+            return await _adminRepository.GetAdminByEmailAsync(email);
         }
 
-        public async Task<OperationResult<AdminDto>> CreateAdminAsync(AdminDto adminDto)
+        public async Task<OperationResult<AdminDto>> GetAdminByNameAsync(string fullName)
         {
-            if (adminDto == null)
+            if (string.IsNullOrWhiteSpace(fullName))
             {
-                _logger.LogWarning("Create admin attempted with null data");
-                return OperationResult<AdminDto>.Failure("Admin data is required");
+                return OperationResult<AdminDto>.Failure("Name cannot be empty");
             }
 
-            _logger.LogInformation("Creating admin: {Email}", adminDto.Email);
+            _logger.LogInformation("Fetching admin by name: {FullName}", fullName);
+            return await _adminRepository.GetAdminByNameAsync(fullName);
+        }   
 
-            var result = await _adminRepository.CreateAdminAsync(adminDto);
+        public async Task<OperationResult<AdminsDto>> GetAdminsAsync(AdminsRequestDto requestDto)
+        {
+            if (requestDto.Page < 1) requestDto.Page = 1;
+            if (requestDto.Limit < 1) requestDto.Limit = 10;
 
-            if (!result.IsSuccess)
-            {
-                _logger.LogWarning("Failed to create admin: {Message}", result.Message);
-                return OperationResult<AdminDto>.Failure(result.Message);
-            }
-
-            _logger.LogInformation("Admin created successfully - AdminId: {AdminId}", result.Data?.AdminId);
-            return OperationResult<AdminDto>.Success(result.Data!, result.Message);
+            _logger.LogInformation("Fetching admins - Page: {Page}, Limit: {Limit}", requestDto.Page, requestDto.Limit);
+            return await _adminRepository.GetAdminsAsync(requestDto);
         }
 
-        public async Task<OperationResult<AdminDto>> UpdateAdminAsync(int adminId, AdminDto adminDto)
+        public async Task<OperationResult<AdminDto>> CreateAdminAsync(AdminAddDto adminDto)
         {
-            if (adminDto == null)
+            _logger.LogInformation("Creating admin: {Email}", adminDto?.Email);
+
+            var validation = await AdminValidation.ValidateAddAsync(adminDto!, _adminRepository, _logger);
+            if (!validation.IsSuccess)
             {
-                _logger.LogWarning("Update admin attempted with null data");
-                return OperationResult<AdminDto>.Failure("Admin data is required");
+                return OperationResult<AdminDto>.Failure(validation.Message);
             }
 
+            return await _adminRepository.CreateAdminAsync(adminDto!);
+        }
+
+        public async Task<OperationResult<AdminDto>> UpdateAdminAsync(int adminId, AdminUpdateDto adminDto)
+        {
             _logger.LogInformation("Updating admin: {AdminId}", adminId);
 
-            var result = await _adminRepository.UpdateAdminAsync(adminId, adminDto);
-
-            if (!result.IsSuccess)
+            var validation = await AdminValidation.ValidateUpdateAsync(adminId, adminDto, _adminRepository, _logger);
+            if (!validation.IsSuccess)
             {
-                _logger.LogWarning("Failed to update admin {AdminId}: {Message}", adminId, result.Message);
-                return OperationResult<AdminDto>.Failure(result.Message);
+                return OperationResult<AdminDto>.Failure(validation.Message);
             }
 
-            _logger.LogInformation("Admin updated successfully - AdminId: {AdminId}", result.Data?.AdminId);
-            return OperationResult<AdminDto>.Success(result.Data!, result.Message);
+            return await _adminRepository.UpdateAdminAsync(adminId, adminDto);
         }
+
 
         public async Task<OperationResult<bool>> DeleteAdminAsync(int adminId)
         {
-            _logger.LogInformation("Deleting admin: {AdminId}", adminId);
-
-            var result = await _adminRepository.DeleteAdminAsync(adminId);
-
-            if (!result.IsSuccess)
+            if (adminId <= 0)
             {
-                _logger.LogWarning("Failed to delete admin {AdminId}: {Message}", adminId, result.Message);
-                return OperationResult<bool>.Failure(result.Message);
+                return OperationResult<bool>.Failure("Invalid admin ID");
             }
 
-            _logger.LogInformation("Admin deleted successfully - AdminId: {AdminId}", adminId);
-            return OperationResult<bool>.Success(result.Data, result.Message);
+            _logger.LogInformation("Deleting admin: {AdminId}", adminId);
+            return await _adminRepository.DeleteAdminAsync(adminId);
         }
     }
 }

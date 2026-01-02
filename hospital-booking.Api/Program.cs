@@ -14,7 +14,7 @@ builder.Services.AddCustomValidationResponse();
 
 // Add CORS policy
 string[] allowedOrigins = {
-    "http://localhost:5173",
+    "http://localhost:3000",
     "https://localhost:5173",
     "http://localhost:5193",
     "https://localhost:5193"

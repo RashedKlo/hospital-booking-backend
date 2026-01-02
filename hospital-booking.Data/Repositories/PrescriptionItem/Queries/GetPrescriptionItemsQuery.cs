@@ -5,6 +5,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using hospital_booking.Data.Settings;
 using hospital_booking.Data.DTOs.PrescriptionItem;
+using hospital_booking.Data.DTOs.Admin;
 using hospital_booking.Data.Results;
 using hospital_booking.Data.Repositories.PrescriptionItem.Helpers;
 
@@ -12,80 +13,114 @@ namespace hospital_booking.Data.Repositories.PrescriptionItem.Queries
 {
     public class GetPrescriptionItemsQuery
     {
-        private const string GetPrescriptionItemsSql = @"
-    SELECT
-        item_id,
-        prescription_id,
-        name,
-        dosage,
-        duration,
-        frequency
-    FROM dbo.prescription_items
-    ORDER BY item_id
-    OFFSET @Offset ROWS
-    FETCH NEXT @Limit ROWS ONLY;
-    ";
-
-        public static async Task<OperationResult<List<PrescriptionItemDto>>> ExecuteAsync(
-            int page,
-            int limit,
+        public static async Task<OperationResult<PrescriptionItemsDto>> ExecuteAsync(
+            PrescriptionItemsRequestDto requestDto, 
             ILogger logger)
         {
-            if (page < 1 || limit < 1)
+            if (requestDto == null || requestDto.Page <= 0 || requestDto.Limit <= 0)
             {
-                logger.LogError("GetPrescriptionItemsQuery received invalid pagination parameters - Page: {Page}, Limit: {Limit}", page, limit);
-                return OperationResult<List<PrescriptionItemDto>>.Failure("Invalid pagination parameters");
+                logger.LogError("GetPrescriptionItemsQuery received invalid params");
+                return OperationResult<PrescriptionItemsDto>.Failure("Invalid parameters");
             }
 
-            logger.LogInformation("Executing getting prescription items - Page: {Page}, Limit: {Limit}", page, limit);
-
-            try
+            try 
             {
+                var (sql, parameters) = BuildQuery(requestDto);
+
                 using var connection = new SqlConnection(DatabaseSettings.ConnectionString);
                 await connection.OpenAsync();
 
-                using var command = CreateCommand(connection, page, limit);
-                using var reader = await command.ExecuteReaderAsync();
+                using var command = new SqlCommand(sql, connection);
+                foreach (var param in parameters)
+                {
+                    command.Parameters.AddWithValue(param.Key, param.Value);
+                }
 
-                return await ProcessResultAsync(reader, logger, page, limit);
-            }
-            catch (SqlException ex)
-            {
-                logger.LogError(ex, "Database error during getting prescription items. Error: {Error}", ex.Message);
-                return OperationResult<List<PrescriptionItemDto>>.Failure("Database operation failed");
+                using var reader = await command.ExecuteReaderAsync();
+                
+                int totalCount = 0;
+                if (await reader.ReadAsync())
+                {
+                    totalCount = reader.GetInt32(0);
+                }
+
+                await reader.NextResultAsync();
+
+                var items = new List<PrescriptionItemDto>();
+                while (await reader.ReadAsync())
+                {
+                    items.Add(PrescriptionItemMapper.MapFromReader(reader));
+                }
+
+                var totalPages = (int)Math.Ceiling((double)totalCount / requestDto.Limit);
+                var resultDto = new PrescriptionItemsDto
+                {
+                    PrescriptionItems = items,
+                    Pagination = new PaginationDto
+                    {
+                        Page = requestDto.Page,
+                        PageSize = requestDto.Limit,
+                        TotalCount = totalCount,
+                        TotalPages = totalPages,
+                        HasPrevious = requestDto.Page > 1,
+                        HasNext = requestDto.Page < totalPages
+                    }
+                };
+
+                return OperationResult<PrescriptionItemsDto>.Success(resultDto, "Prescription items retrieved successfully");
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Unexpected error during getting prescription items");
-                return OperationResult<List<PrescriptionItemDto>>.Failure("Getting prescription items failed due to system error");
+                logger.LogError(ex, "Error retrieving prescription items: {Error}", ex.Message);
+                return OperationResult<PrescriptionItemsDto>.Failure("Database operation failed");
             }
         }
 
-        private static SqlCommand CreateCommand(SqlConnection connection, int page, int limit)
+        private static (string sql, Dictionary<string, object> parameters) BuildQuery(PrescriptionItemsRequestDto request)
         {
-            var command = new SqlCommand(GetPrescriptionItemsSql, connection);
-            command.Parameters.AddWithValue("@Offset", (page - 1) * limit);
-            command.Parameters.AddWithValue("@Limit", limit);
-            return command;
-        }
+            var whereConditions = new List<string>();
+            var parameters = new Dictionary<string, object>();
 
-        private static async Task<OperationResult<List<PrescriptionItemDto>>> ProcessResultAsync(
-            SqlDataReader reader,
-            ILogger logger,
-            int page,
-            int limit)
-        {
-            var prescriptionItems = new List<PrescriptionItemDto>();
+            var offset = (request.Page - 1) * request.Limit;
+            parameters.Add("@Offset", offset);
+            parameters.Add("@Limit", request.Limit);
 
-            while (await reader.ReadAsync())
+            if (!string.IsNullOrWhiteSpace(request.SearchQuery))
             {
-                prescriptionItems.Add(PrescriptionItemMapper.MapFromReader(reader));
+                var search = $"%{request.SearchQuery.Trim()}%";
+                whereConditions.Add("(pi.name LIKE @Search OR pi.dosage LIKE @Search OR pi.duration LIKE @Search OR pi.frequency LIKE @Search)");
+                parameters.Add("@Search", search);
             }
 
-            logger.LogInformation("Retrieved {Count} prescription items - Page: {Page}, Limit: {Limit}",
-                prescriptionItems.Count, page, limit);
+            if (request.PrescriptionId.HasValue)
+            {
+                whereConditions.Add("pi.prescription_id = @PrescriptionId");
+                parameters.Add("@PrescriptionId", request.PrescriptionId.Value);
+            }
 
-            return OperationResult<List<PrescriptionItemDto>>.Success(prescriptionItems, "Prescription items retrieved successfully");
+            var whereClause = whereConditions.Count > 0 
+                ? "WHERE " + string.Join(" AND ", whereConditions)
+                : "";
+
+            var sql = $@"
+-- Count
+SELECT COUNT(*) 
+FROM dbo.prescription_items pi
+INNER JOIN dbo.prescriptions p ON pi.prescription_id = p.prescription_id
+{whereClause};
+
+-- Data
+SELECT 
+    pi.item_id, pi.prescription_id, pi.name, pi.dosage, pi.duration, pi.frequency,
+    p.prescription_id, p.appointment_id, p.instructions
+FROM dbo.prescription_items pi
+INNER JOIN dbo.prescriptions p ON pi.prescription_id = p.prescription_id
+{whereClause}
+ORDER BY pi.item_id
+OFFSET @Offset ROWS
+FETCH NEXT @Limit ROWS ONLY;
+";
+            return (sql, parameters);
         }
     }
 }

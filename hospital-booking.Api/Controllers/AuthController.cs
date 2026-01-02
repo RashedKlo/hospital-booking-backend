@@ -86,7 +86,7 @@ namespace hospital_booking.Api.Controllers
         [HttpGet("callback-google")]
         public async Task<IActionResult> GoogleCallback()
         {
-            string _frontendUrl = "http://localhost:5173";
+            string _frontendUrl = "http://localhost:3000/hospital-booking/";
 
             try
             {

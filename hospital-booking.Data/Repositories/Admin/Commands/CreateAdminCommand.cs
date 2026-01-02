@@ -12,12 +12,12 @@ namespace hospital_booking.Data.Repositories.Admin.Commands
     public static class CreateAdminCommand
     {
         private const string CreateSql = @"
-INSERT INTO dbo.admins (full_name, email, password, role, is_active)
-OUTPUT inserted.admin_id, inserted.full_name, inserted.email, inserted.password, inserted.role, inserted.is_active
-VALUES (@FullName, @Email, @Password, @Role, @IsActive);
+INSERT INTO dbo.admins (full_name, email, role, phone, is_active)
+OUTPUT inserted.admin_id, inserted.full_name, inserted.email, inserted.role, inserted.phone, inserted.is_active, inserted.created_at, inserted.updated_at
+VALUES (@FullName, @Email, @Role, @Phone, @IsActive);
 ";
 
-        public static async Task<OperationResult<AdminDto>> ExecuteAsync(AdminDto dto, ILogger logger)
+        public static async Task<OperationResult<AdminDto>> ExecuteAsync(AdminAddDto dto, ILogger logger)
         {
             if (dto == null)
             {
@@ -31,11 +31,11 @@ VALUES (@FullName, @Email, @Password, @Role, @IsActive);
                 await connection.OpenAsync();
 
                 using var command = new SqlCommand(CreateSql, connection);
-                command.Parameters.AddWithValue("@FullName", dto.FullName ?? string.Empty);
-                command.Parameters.AddWithValue("@Email", dto.Email ?? string.Empty);
-                command.Parameters.AddWithValue("@Password", (object?)dto.Password ?? DBNull.Value);
-                command.Parameters.AddWithValue("@Role", dto.Role ?? string.Empty);
-                command.Parameters.AddWithValue("@IsActive", dto.IsActive);
+                command.Parameters.AddWithValue("@FullName", dto.FullName);
+                command.Parameters.AddWithValue("@Email", dto.Email);
+                command.Parameters.AddWithValue("@Role", dto.Role);
+                command.Parameters.AddWithValue("@Phone", dto.Phone);
+                command.Parameters.AddWithValue("@IsActive", true);
 
                 using var reader = await command.ExecuteReaderAsync();
                 if (!await reader.ReadAsync())

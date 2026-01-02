@@ -5,86 +5,45 @@ using Microsoft.Extensions.Logging;
 using hospital_booking.Data.Settings;
 using hospital_booking.Data.DTOs.Prescription;
 using hospital_booking.Data.Results;
-using hospital_booking.Data.Repositories.Prescription.Helpers;
+using hospital_booking.Data.Repositories.Prescription.Queries;
 
 namespace hospital_booking.Data.Repositories.Prescription.Commands
 {
     public static class UpdatePrescriptionCommand
     {
-        private const string UpdatePrescriptionSql = @"
+        private const string UpdateSql = @"
 UPDATE dbo.prescriptions
-SET appointment_id = @AppointmentId,
-    instructions = @Instructions
-OUTPUT inserted.prescription_id, inserted.appointment_id, inserted.instructions
+SET instructions = ISNULL(@Instructions, instructions)
 WHERE prescription_id = @PrescriptionId;
 ";
 
-        public static async Task<OperationResult<PrescriptionDto>> ExecuteAsync(
-            int prescriptionId,
-            PrescriptionDto dto,
-            ILogger logger)
+        public static async Task<OperationResult<PrescriptionDto>> ExecuteAsync(int prescriptionId, PrescriptionUpdateDto dto, ILogger logger)
         {
-            if (dto == null)
-            {
-                logger.LogError("UpdatePrescriptionCommand received null prescription data");
-                return OperationResult<PrescriptionDto>.Failure("Prescription data is required");
-            }
-
-            if (prescriptionId <= 0)
-            {
-                logger.LogError("UpdatePrescriptionCommand received invalid prescription ID: {PrescriptionId}", prescriptionId);
-                return OperationResult<PrescriptionDto>.Failure("Invalid prescription ID");
-            }
-
-            logger.LogInformation("Executing prescription update for PrescriptionId: {PrescriptionId}", prescriptionId);
+            if (prescriptionId <= 0) return OperationResult<PrescriptionDto>.Failure("Invalid prescription ID");
+            if (dto == null) return OperationResult<PrescriptionDto>.Failure("Data is required");
 
             try
             {
                 using var connection = new SqlConnection(DatabaseSettings.ConnectionString);
                 await connection.OpenAsync();
 
-                using var command = CreateCommand(connection, prescriptionId, dto);
-                using var reader = await command.ExecuteReaderAsync();
+                using var command = new SqlCommand(UpdateSql, connection);
+                command.Parameters.AddWithValue("@PrescriptionId", prescriptionId);
+                command.Parameters.AddWithValue("@Instructions", (object?)dto.Instructions ?? DBNull.Value);
 
-                return await ProcessResultAsync(reader, logger, prescriptionId);
-            }
-            catch (SqlException ex)
-            {
-                logger.LogError(ex, "Database error during prescription update for PrescriptionId: {PrescriptionId}. Error: {Error}",
-                    prescriptionId, ex.Message);
-                return OperationResult<PrescriptionDto>.Failure("Database operation failed");
+                var rows = await command.ExecuteNonQueryAsync();
+                if (rows == 0)
+                {
+                    return OperationResult<PrescriptionDto>.Failure("Prescription not found");
+                }
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Unexpected error during prescription update for PrescriptionId: {PrescriptionId}", prescriptionId);
-                return OperationResult<PrescriptionDto>.Failure("Prescription update failed due to system error");
-            }
-        }
-
-        private static SqlCommand CreateCommand(SqlConnection connection, int prescriptionId, PrescriptionDto dto)
-        {
-            var command = new SqlCommand(UpdatePrescriptionSql, connection);
-            command.Parameters.AddWithValue("@PrescriptionId", prescriptionId);
-            command.Parameters.AddWithValue("@AppointmentId", dto.AppointmentId);
-            command.Parameters.AddWithValue("@Instructions", dto.Instructions ?? string.Empty);
-            return command;
-        }
-
-        private static async Task<OperationResult<PrescriptionDto>> ProcessResultAsync(
-            SqlDataReader reader,
-            ILogger logger,
-            int prescriptionId)
-        {
-            if (!await reader.ReadAsync())
-            {
-                logger.LogWarning("No result returned from prescription update for PrescriptionId: {PrescriptionId}", prescriptionId);
-                return OperationResult<PrescriptionDto>.Failure("Prescription not found or update failed");
+                logger.LogError(ex, "Error updating prescription: {Error}", ex.Message);
+                return OperationResult<PrescriptionDto>.Failure("Database operation failed");
             }
 
-            var prescription = PrescriptionMapper.MapFromReader(reader);
-            logger.LogInformation("Prescription updated successfully - PrescriptionId: {PrescriptionId}", prescription.PrescriptionId);
-
-            return OperationResult<PrescriptionDto>.Success(prescription, "Prescription updated successfully");
+            return await GetPrescriptionQuery.ExecuteAsync(prescriptionId, logger);
         }
     }
 }

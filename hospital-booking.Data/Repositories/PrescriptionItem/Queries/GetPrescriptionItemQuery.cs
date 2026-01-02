@@ -11,75 +11,44 @@ namespace hospital_booking.Data.Repositories.PrescriptionItem.Queries
 {
     public class GetPrescriptionItemQuery
     {
-        private const string GetPrescriptionItemSql = @"
-    SELECT TOP (1)
-        item_id,
-        prescription_id,
-        name,
-        dosage,
-        duration,
-        frequency
-    FROM dbo.prescription_items
-    WHERE item_id = @ItemId;
-    ";
+        private const string GetSql = @"
+SELECT 
+    pi.item_id, pi.prescription_id, pi.name, pi.dosage, pi.duration, pi.frequency,
+    p.prescription_id, p.appointment_id, p.instructions
+FROM dbo.prescription_items pi
+INNER JOIN dbo.prescriptions p ON pi.prescription_id = p.prescription_id
+WHERE pi.item_id = @ItemId;
+";
 
-        public static async Task<OperationResult<PrescriptionItemDto>> ExecuteAsync(
-            int itemId,
-            ILogger logger)
+        public static async Task<OperationResult<PrescriptionItemDto>> ExecuteAsync(int itemId, ILogger logger)
         {
             if (itemId <= 0)
             {
-                logger.LogError("GetPrescriptionItemQuery received invalid item ID: {ItemId}", itemId);
                 return OperationResult<PrescriptionItemDto>.Failure("Invalid item ID");
             }
-
-            logger.LogInformation("Executing getting prescription item by ID: {ItemId}", itemId);
 
             try
             {
                 using var connection = new SqlConnection(DatabaseSettings.ConnectionString);
                 await connection.OpenAsync();
 
-                using var command = CreateCommand(connection, itemId);
-                using var reader = await command.ExecuteReaderAsync();
+                using var command = new SqlCommand(GetSql, connection);
+                command.Parameters.AddWithValue("@ItemId", itemId);
 
-                return await ProcessResultAsync(reader, logger, itemId);
-            }
-            catch (SqlException ex)
-            {
-                logger.LogError(ex, "Database error during getting prescription item by ItemId: {ItemId}. Error: {Error}",
-                    itemId, ex.Message);
-                return OperationResult<PrescriptionItemDto>.Failure("Database operation failed");
+                using var reader = await command.ExecuteReaderAsync();
+                if (!await reader.ReadAsync())
+                {
+                    return OperationResult<PrescriptionItemDto>.Failure("Prescription item not found");
+                }
+
+                var dto = PrescriptionItemMapper.MapFromReader(reader);
+                return OperationResult<PrescriptionItemDto>.Success(dto, "Prescription item retrieved successfully");
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Unexpected error during getting prescription item by ItemId: {ItemId}", itemId);
-                return OperationResult<PrescriptionItemDto>.Failure("Getting prescription item failed due to system error");
+                logger.LogError(ex, "Error getting prescription item: {Error}", ex.Message);
+                return OperationResult<PrescriptionItemDto>.Failure("Database operation failed");
             }
-        }
-
-        private static SqlCommand CreateCommand(SqlConnection connection, int itemId)
-        {
-            var command = new SqlCommand(GetPrescriptionItemSql, connection);
-            command.Parameters.AddWithValue("@ItemId", itemId);
-            return command;
-        }
-
-        private static async Task<OperationResult<PrescriptionItemDto>> ProcessResultAsync(
-            SqlDataReader reader,
-            ILogger logger,
-            int itemId)
-        {
-            if (!await reader.ReadAsync())
-            {
-                logger.LogWarning("No result returned from getting prescription item by ItemId: {ItemId}", itemId);
-                return OperationResult<PrescriptionItemDto>.Failure("Prescription item not found");
-            }
-
-            var prescriptionItem = PrescriptionItemMapper.MapFromReader(reader);
-            logger.LogInformation("Getting prescription item successfully - ItemId: {ItemId}", prescriptionItem.ItemId);
-
-            return OperationResult<PrescriptionItemDto>.Success(prescriptionItem, "Prescription item found successfully");
         }
     }
 }

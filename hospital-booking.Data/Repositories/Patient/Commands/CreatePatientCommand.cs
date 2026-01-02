@@ -5,7 +5,6 @@ using Microsoft.Extensions.Logging;
 using hospital_booking.Data.Settings;
 using hospital_booking.Data.DTOs.Patient;
 using hospital_booking.Data.Results;
-using hospital_booking.Data.Repositories.Patient.Helpers;
 
 namespace hospital_booking.Data.Repositories.Patient.Commands
 {
@@ -13,16 +12,15 @@ namespace hospital_booking.Data.Repositories.Patient.Commands
     {
         private const string CreateSql = @"
 INSERT INTO dbo.patients (user_id, full_name, birthDate, gender, notes)
-OUTPUT inserted.patient_id, inserted.user_id, inserted.full_name, inserted.birthDate, inserted.gender, inserted.notes
 VALUES (@UserId, @FullName, @BirthDate, @Gender, @Notes);
 ";
 
-        public static async Task<OperationResult<PatientDto>> ExecuteAsync(PatientDto dto, ILogger logger)
+        public static async Task<OperationResult<bool>> ExecuteAsync(PatientAddDto dto, ILogger logger)
         {
             if (dto == null)
             {
                 logger.LogError("CreatePatientCommand received null dto");
-                return OperationResult<PatientDto>.Failure("Patient data is required");
+                return OperationResult<bool>.Failure("Patient data is required");
             }
 
             try
@@ -32,24 +30,22 @@ VALUES (@UserId, @FullName, @BirthDate, @Gender, @Notes);
 
                 using var command = new SqlCommand(CreateSql, connection);
                 command.Parameters.AddWithValue("@UserId", (object?)dto.UserId ?? DBNull.Value);
-                command.Parameters.AddWithValue("@FullName", dto.FullName ?? string.Empty);
+                command.Parameters.AddWithValue("@FullName", dto.FullName);
                 command.Parameters.AddWithValue("@BirthDate", (object?)dto.BirthDate ?? DBNull.Value);
-                command.Parameters.AddWithValue("@Gender", dto.Gender ?? string.Empty);
-                command.Parameters.AddWithValue("@Notes", dto.Notes ?? string.Empty);
+                command.Parameters.AddWithValue("@Gender", (object?)dto.Gender ?? DBNull.Value);
+                command.Parameters.AddWithValue("@Notes", (object?)dto.Notes ?? DBNull.Value);
 
-                using var reader = await command.ExecuteReaderAsync();
-                if (!await reader.ReadAsync())
+                var rows = await command.ExecuteNonQueryAsync();
+                if (rows > 0)
                 {
-                    return OperationResult<PatientDto>.Failure("Patient creation returned no result");
+                    return OperationResult<bool>.Success(true, "Patient created successfully");
                 }
-
-                var patient = PatientMapper.MapFromReader(reader);
-                return OperationResult<PatientDto>.Success(patient, "Patient created successfully");
+                return OperationResult<bool>.Failure("Failed to create patient");
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Error creating patient: {Error}", ex.Message);
-                return OperationResult<PatientDto>.Failure("Database operation failed");
+                return OperationResult<bool>.Failure("Database operation failed");
             }
         }
     }

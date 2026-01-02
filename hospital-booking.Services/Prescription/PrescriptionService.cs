@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using hospital_booking.Data.DTOs.Prescription;
 using hospital_booking.Data.Interfaces;
@@ -12,11 +11,16 @@ namespace hospital_booking.Services.Prescription
     public sealed class PrescriptionService : IPrescriptionService
     {
         private readonly IPrescriptionRepository _prescriptionRepository;
+        private readonly IAppointmentRepository _appointmentRepository;
         private readonly ILogger<PrescriptionService> _logger;
 
-        public PrescriptionService(IPrescriptionRepository prescriptionRepository, ILogger<PrescriptionService> logger)
+        public PrescriptionService(
+            IPrescriptionRepository prescriptionRepository, 
+            IAppointmentRepository appointmentRepository,
+            ILogger<PrescriptionService> logger)
         {
             _prescriptionRepository = prescriptionRepository ?? throw new ArgumentNullException(nameof(prescriptionRepository));
+            _appointmentRepository = appointmentRepository ?? throw new ArgumentNullException(nameof(appointmentRepository));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -36,71 +40,54 @@ namespace hospital_booking.Services.Prescription
             return OperationResult<PrescriptionDto>.Success(result.Data!, result.Message);
         }
 
-        public async Task<OperationResult<List<PrescriptionDto>>> GetPrescriptionsAsync(int page, int limit)
+        public async Task<OperationResult<PrescriptionsDto>> GetPrescriptionsAsync(PrescriptionsRequestDto requestDto)
         {
-            _logger.LogInformation("Fetching prescriptions - Page: {Page}, Limit: {Limit}", page, limit);
+            _logger.LogInformation("Fetching prescriptions - Page: {Page}, Limit: {Limit}", requestDto.Page, requestDto.Limit);
 
-            var result = await _prescriptionRepository.GetPrescriptionsAsync(page, limit);
+            var result = await _prescriptionRepository.GetPrescriptionsAsync(requestDto);
 
             if (!result.IsSuccess)
             {
                 _logger.LogWarning("Failed to fetch prescriptions: {Message}", result.Message);
-                return OperationResult<List<PrescriptionDto>>.Failure(result.Message);
+                return OperationResult<PrescriptionsDto>.Failure(result.Message);
             }
 
-            _logger.LogInformation("Fetched {Count} prescriptions successfully", result.Data?.Count ?? 0);
-            return OperationResult<List<PrescriptionDto>>.Success(result.Data!, result.Message);
+            return OperationResult<PrescriptionsDto>.Success(result.Data!, result.Message);
         }
 
-        public async Task<OperationResult<List<PrescriptionDto>>> GetPrescriptionsByAppointmentAsync(int appointmentId)
+        public async Task<OperationResult<bool>> CreatePrescriptionAsync(PrescriptionAddDto dto)
         {
-            _logger.LogInformation("Fetching prescriptions by AppointmentId: {AppointmentId}", appointmentId);
+            _logger.LogInformation("Creating prescription for AppointmentId: {AppointmentId}", dto?.AppointmentId);
 
-            var result = await _prescriptionRepository.GetPrescriptionsByAppointmentAsync(appointmentId);
-
-            if (!result.IsSuccess)
+            var validationResult = await PrescriptionValidation.ValidateAddAsync(dto!, _appointmentRepository, _logger);
+            if (!validationResult.IsSuccess)
             {
-                _logger.LogWarning("Failed to fetch prescriptions for appointment {AppointmentId}: {Message}", appointmentId, result.Message);
-                return OperationResult<List<PrescriptionDto>>.Failure(result.Message);
+                return OperationResult<bool>.Failure(validationResult.Message);
             }
 
-            _logger.LogInformation("Fetched {Count} prescriptions for AppointmentId: {AppointmentId}", result.Data?.Count ?? 0, appointmentId);
-            return OperationResult<List<PrescriptionDto>>.Success(result.Data!, result.Message);
-        }
-
-        public async Task<OperationResult<PrescriptionDto>> CreatePrescriptionAsync(PrescriptionDto prescriptionDto)
-        {
-            if (prescriptionDto == null)
-            {
-                _logger.LogWarning("Create prescription attempted with null data");
-                return OperationResult<PrescriptionDto>.Failure("Prescription data is required");
-            }
-
-            _logger.LogInformation("Creating prescription for AppointmentId: {AppointmentId}", prescriptionDto.AppointmentId);
-
-            var result = await _prescriptionRepository.CreatePrescriptionAsync(prescriptionDto);
+            var result = await _prescriptionRepository.CreatePrescriptionAsync(dto!);
 
             if (!result.IsSuccess)
             {
                 _logger.LogWarning("Failed to create prescription: {Message}", result.Message);
-                return OperationResult<PrescriptionDto>.Failure(result.Message);
+                return OperationResult<bool>.Failure(result.Message);
             }
 
-            _logger.LogInformation("Prescription created successfully - PrescriptionId: {PrescriptionId}", result.Data?.PrescriptionId);
-            return OperationResult<PrescriptionDto>.Success(result.Data!, result.Message);
+            _logger.LogInformation("Prescription created successfully");
+            return OperationResult<bool>.Success(true, result.Message);
         }
 
-        public async Task<OperationResult<PrescriptionDto>> UpdatePrescriptionAsync(int prescriptionId, PrescriptionDto prescriptionDto)
+        public async Task<OperationResult<PrescriptionDto>> UpdatePrescriptionAsync(int prescriptionId, PrescriptionUpdateDto dto)
         {
-            if (prescriptionDto == null)
-            {
-                _logger.LogWarning("Update prescription attempted with null data");
-                return OperationResult<PrescriptionDto>.Failure("Prescription data is required");
-            }
-
             _logger.LogInformation("Updating prescription: {PrescriptionId}", prescriptionId);
 
-            var result = await _prescriptionRepository.UpdatePrescriptionAsync(prescriptionId, prescriptionDto);
+            var validationResult = await PrescriptionValidation.ValidateUpdateAsync(prescriptionId, dto, _prescriptionRepository, _logger);
+            if (!validationResult.IsSuccess)
+            {
+                return OperationResult<PrescriptionDto>.Failure(validationResult.Message);
+            }
+
+            var result = await _prescriptionRepository.UpdatePrescriptionAsync(prescriptionId, dto);
 
             if (!result.IsSuccess)
             {
@@ -127,5 +114,6 @@ namespace hospital_booking.Services.Prescription
             _logger.LogInformation("Prescription deleted successfully - PrescriptionId: {PrescriptionId}", prescriptionId);
             return OperationResult<bool>.Success(result.Data, result.Message);
         }
+
     }
 }

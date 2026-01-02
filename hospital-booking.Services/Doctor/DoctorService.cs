@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using hospital_booking.Data.DTOs.Doctor;
 using hospital_booking.Data.Interfaces;
@@ -12,11 +11,16 @@ namespace hospital_booking.Services.Doctor
     public sealed class DoctorService : IDoctorService
     {
         private readonly IDoctorRepository _doctorRepository;
+        private readonly IClinicRepository _clinicRepository;
         private readonly ILogger<DoctorService> _logger;
 
-        public DoctorService(IDoctorRepository doctorRepository, ILogger<DoctorService> logger)
+        public DoctorService(
+            IDoctorRepository doctorRepository, 
+            IClinicRepository clinicRepository,
+            ILogger<DoctorService> logger)
         {
             _doctorRepository = doctorRepository ?? throw new ArgumentNullException(nameof(doctorRepository));
+            _clinicRepository = clinicRepository ?? throw new ArgumentNullException(nameof(clinicRepository));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -36,53 +40,53 @@ namespace hospital_booking.Services.Doctor
             return OperationResult<DoctorDto>.Success(result.Data!, result.Message);
         }
 
-        public async Task<OperationResult<List<DoctorDto>>> GetDoctorsAsync(int page, int limit)
+        public async Task<OperationResult<DoctorsDto>> GetDoctorsAsync(DoctorsRequestDto requestDto)
         {
-            _logger.LogInformation("Fetching doctors - Page: {Page}, Limit: {Limit}", page, limit);
+            _logger.LogInformation("Fetching doctors - Page: {Page}, Limit: {Limit}", requestDto.Page, requestDto.Limit);
 
-            var result = await _doctorRepository.GetDoctorsAsync(page, limit);
+            var result = await _doctorRepository.GetDoctorsAsync(requestDto);
 
             if (!result.IsSuccess)
             {
-                _logger.LogWarning("Failed to fetch doctors: {Message}", result.Message);
-                return OperationResult<List<DoctorDto>>.Failure(result.Message);
+                _logger.LogWarning("Failed to fetch doctors on page {Page}: {Message}", requestDto.Page, result.Message);
+                return OperationResult<DoctorsDto>.Failure(result.Message);
             }
 
-            _logger.LogInformation("Fetched {Count} doctors successfully", result.Data?.Count ?? 0);
-            return OperationResult<List<DoctorDto>>.Success(result.Data!, result.Message);
+
+            return OperationResult<DoctorsDto>.Success(result.Data!, result.Message);
         }
 
-        public async Task<OperationResult<DoctorDto>> CreateDoctorAsync(DoctorDto doctorDto)
+        public async Task<OperationResult<bool>> CreateDoctorAsync(DoctorAddDto doctorDto)
         {
-            if (doctorDto == null)
+            _logger.LogInformation("Creating doctor for ClinicId: {ClinicId}, Name: {Name}", doctorDto?.ClinicId, doctorDto?.FullName);
+
+            var validationResult = await DoctorValidation.ValidateAddAsync(doctorDto!, _clinicRepository, _logger);
+            if (!validationResult.IsSuccess)
             {
-                _logger.LogWarning("Create doctor attempted with null data");
-                return OperationResult<DoctorDto>.Failure("Doctor data is required");
+                return OperationResult<bool>.Failure(validationResult.Message);
             }
 
-            _logger.LogInformation("Creating doctor: {FullName}", doctorDto.FullName);
-
-            var result = await _doctorRepository.CreateDoctorAsync(doctorDto);
+            var result = await _doctorRepository.CreateDoctorAsync(doctorDto!);
 
             if (!result.IsSuccess)
             {
                 _logger.LogWarning("Failed to create doctor: {Message}", result.Message);
-                return OperationResult<DoctorDto>.Failure(result.Message);
+                return OperationResult<bool>.Failure(result.Message);
             }
 
-            _logger.LogInformation("Doctor created successfully - DoctorId: {DoctorId}", result.Data?.DoctorId);
-            return OperationResult<DoctorDto>.Success(result.Data!, result.Message);
+            _logger.LogInformation("Doctor created successfully");
+            return OperationResult<bool>.Success(true, result.Message);
         }
 
-        public async Task<OperationResult<DoctorDto>> UpdateDoctorAsync(int doctorId, DoctorDto doctorDto)
+        public async Task<OperationResult<DoctorDto>> UpdateDoctorAsync(int doctorId, DoctorUpdateDto doctorDto)
         {
-            if (doctorDto == null)
-            {
-                _logger.LogWarning("Update doctor attempted with null data");
-                return OperationResult<DoctorDto>.Failure("Doctor data is required");
-            }
-
             _logger.LogInformation("Updating doctor: {DoctorId}", doctorId);
+
+            var validationResult = await DoctorValidation.ValidateUpdateAsync(doctorId, doctorDto, _doctorRepository, _logger);
+            if (!validationResult.IsSuccess)
+            {
+                return OperationResult<DoctorDto>.Failure(validationResult.Message);
+            }
 
             var result = await _doctorRepository.UpdateDoctorAsync(doctorId, doctorDto);
 
@@ -111,5 +115,6 @@ namespace hospital_booking.Services.Doctor
             _logger.LogInformation("Doctor deleted successfully - DoctorId: {DoctorId}", doctorId);
             return OperationResult<bool>.Success(result.Data, result.Message);
         }
+
     }
 }

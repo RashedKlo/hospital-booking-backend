@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using hospital_booking.Data.DTOs.Appointment;
 using hospital_booking.Data.Interfaces;
@@ -12,11 +11,19 @@ namespace hospital_booking.Services.Appointment
     public sealed class AppointmentService : IAppointmentService
     {
         private readonly IAppointmentRepository _appointmentRepository;
+        private readonly IPatientRepository _patientRepository;
+        private readonly IDoctorRepository _doctorRepository;
         private readonly ILogger<AppointmentService> _logger;
 
-        public AppointmentService(IAppointmentRepository appointmentRepository, ILogger<AppointmentService> logger)
+        public AppointmentService(
+            IAppointmentRepository appointmentRepository, 
+            IPatientRepository patientRepository,
+            IDoctorRepository doctorRepository,
+            ILogger<AppointmentService> logger)
         {
             _appointmentRepository = appointmentRepository ?? throw new ArgumentNullException(nameof(appointmentRepository));
+            _patientRepository = patientRepository ?? throw new ArgumentNullException(nameof(patientRepository));
+            _doctorRepository = doctorRepository ?? throw new ArgumentNullException(nameof(doctorRepository));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -36,54 +43,53 @@ namespace hospital_booking.Services.Appointment
             return OperationResult<AppointmentDto>.Success(result.Data!, result.Message);
         }
 
-        public async Task<OperationResult<List<AppointmentDto>>> GetAppointmentsAsync(int page, int limit)
+        public async Task<OperationResult<AppointmentsDto>> GetAppointmentsAsync(AppointmentsRequestDto requestDto)
         {
-            _logger.LogInformation("Fetching appointments - Page: {Page}, Limit: {Limit}", page, limit);
+            _logger.LogInformation("Fetching appointments - Page: {Page}, Limit: {Limit}", requestDto.Page, requestDto.Limit);
 
-            var result = await _appointmentRepository.GetAppointmentsAsync(page, limit);
+            var result = await _appointmentRepository.GetAppointmentsAsync(requestDto);
 
             if (!result.IsSuccess)
             {
                 _logger.LogWarning("Failed to fetch appointments: {Message}", result.Message);
-                return OperationResult<List<AppointmentDto>>.Failure(result.Message);
+                return OperationResult<AppointmentsDto>.Failure(result.Message);
             }
 
-            _logger.LogInformation("Fetched {Count} appointments successfully", result.Data?.Count ?? 0);
-            return OperationResult<List<AppointmentDto>>.Success(result.Data!, result.Message);
+            return OperationResult<AppointmentsDto>.Success(result.Data!, result.Message);
         }
 
-        public async Task<OperationResult<AppointmentDto>> CreateAppointmentAsync(AppointmentDto appointmentDto)
+        public async Task<OperationResult<bool>> CreateAppointmentAsync(AppointmentAddDto appointmentDto)
         {
-            if (appointmentDto == null)
+            _logger.LogInformation("Creating appointment for PatientId: {PatientId}, DoctorId: {DoctorId}", 
+                appointmentDto?.PatientId, appointmentDto?.DoctorId);
+
+            var validationResult = await AppointmentValidation.ValidateAddAsync(appointmentDto!, _patientRepository, _doctorRepository, _logger);
+            if (!validationResult.IsSuccess)
             {
-                _logger.LogWarning("Create appointment attempted with null data");
-                return OperationResult<AppointmentDto>.Failure("Appointment data is required");
+                return OperationResult<bool>.Failure(validationResult.Message);
             }
 
-            _logger.LogInformation("Creating appointment for PatientId: {PatientId}, DoctorId: {DoctorId}", 
-                appointmentDto.PatientId, appointmentDto.DoctorId);
-
-            var result = await _appointmentRepository.CreateAppointmentAsync(appointmentDto);
+            var result = await _appointmentRepository.CreateAppointmentAsync(appointmentDto!);
 
             if (!result.IsSuccess)
             {
                 _logger.LogWarning("Failed to create appointment: {Message}", result.Message);
-                return OperationResult<AppointmentDto>.Failure(result.Message);
+                return OperationResult<bool>.Failure(result.Message);
             }
 
-            _logger.LogInformation("Appointment created successfully - AppointmentId: {AppointmentId}", result.Data?.AppointmentId);
-            return OperationResult<AppointmentDto>.Success(result.Data!, result.Message);
+            _logger.LogInformation("Appointment created successfully");
+            return OperationResult<bool>.Success(true, result.Message);
         }
 
-        public async Task<OperationResult<AppointmentDto>> UpdateAppointmentAsync(int appointmentId, AppointmentDto appointmentDto)
+        public async Task<OperationResult<AppointmentDto>> UpdateAppointmentAsync(int appointmentId, AppointmentUpdateDto appointmentDto)
         {
-            if (appointmentDto == null)
-            {
-                _logger.LogWarning("Update appointment attempted with null data");
-                return OperationResult<AppointmentDto>.Failure("Appointment data is required");
-            }
-
             _logger.LogInformation("Updating appointment: {AppointmentId}", appointmentId);
+
+            var validationResult = await AppointmentValidation.ValidateUpdateAsync(appointmentId, appointmentDto, _appointmentRepository, _logger);
+            if (!validationResult.IsSuccess)
+            {
+                return OperationResult<AppointmentDto>.Failure(validationResult.Message);
+            }
 
             var result = await _appointmentRepository.UpdateAppointmentAsync(appointmentId, appointmentDto);
 
@@ -112,5 +118,6 @@ namespace hospital_booking.Services.Appointment
             _logger.LogInformation("Appointment deleted successfully - AppointmentId: {AppointmentId}", appointmentId);
             return OperationResult<bool>.Success(result.Data, result.Message);
         }
+
     }
 }

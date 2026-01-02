@@ -2,6 +2,9 @@ using Microsoft.AspNetCore.Mvc;
 using hospital_booking.Data.DTOs.Patient;
 using hospital_booking.Services.Interfaces;
 using hospital_booking.Api.Responses;
+using System.Linq; // For ToList()
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace hospital_booking.Api.Controllers
 {
@@ -37,28 +40,28 @@ namespace hospital_booking.Api.Controllers
         }
 
         /// <summary>
-        /// Get all patients with pagination
+        /// Get all patients with filtering and pagination
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> GetPatients([FromQuery] int page = 1, [FromQuery] int limit = 10)
+        public async Task<IActionResult> GetPatients([FromQuery] PatientsRequestDto requestDto)
         {
-            _logger.LogInformation("Getting patients - Page: {Page}, Limit: {Limit}", page, limit);
+            _logger.LogInformation("Getting patients - Page: {Page}, Limit: {Limit}", requestDto.Page, requestDto.Limit);
 
-            var result = await _patientService.GetPatientsAsync(page, limit);
+            var result = await _patientService.GetPatientsAsync(requestDto);
             if (!result.IsSuccess)
             {
                 _logger.LogWarning("Failed to get patients: {Message}", result.Message);
                 return BadRequest(new ErrorResponse(result.Message, result.Errors.ToList()));
             }
 
-            return Ok(new SuccessResponse<List<PatientDto>>(result.Data!, result.Message));
+            return Ok(new SuccessResponse<PatientsDto>(result.Data!, result.Message));
         }
 
         /// <summary>
         /// Create a new patient
         /// </summary>
         [HttpPost]
-        public async Task<IActionResult> CreatePatient([FromBody] PatientDto dto)
+        public async Task<IActionResult> CreatePatient([FromBody] PatientAddDto dto)
         {
             _logger.LogInformation("Creating patient: {FullName}", dto.FullName);
 
@@ -69,15 +72,15 @@ namespace hospital_booking.Api.Controllers
                 return BadRequest(new ErrorResponse(result.Message, result.Errors.ToList()));
             }
 
-            _logger.LogInformation("Patient created successfully - PatientId: {PatientId}", result.Data?.PatientId);
-            return CreatedAtAction(nameof(GetPatient), new { id = result.Data?.PatientId }, new SuccessResponse<PatientDto>(result.Data!, result.Message));
+            _logger.LogInformation("Patient created successfully");
+            return Ok(new SuccessResponse<bool>(result.Data, result.Message));
         }
 
         /// <summary>
         /// Update an existing patient
         /// </summary>
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdatePatient(int id, [FromBody] PatientDto dto)
+        public async Task<IActionResult> UpdatePatient(int id, [FromBody] PatientUpdateDto dto)
         {
             _logger.LogInformation("Updating patient: {PatientId}", id);
 

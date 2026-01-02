@@ -5,79 +5,48 @@ using Microsoft.Extensions.Logging;
 using hospital_booking.Data.Settings;
 using hospital_booking.Data.DTOs.PrescriptionItem;
 using hospital_booking.Data.Results;
-using hospital_booking.Data.Repositories.PrescriptionItem.Helpers;
 
 namespace hospital_booking.Data.Repositories.PrescriptionItem.Commands
 {
     public static class CreatePrescriptionItemCommand
     {
-        private const string CreatePrescriptionItemSql = @"
+        private const string CreateSql = @"
 INSERT INTO dbo.prescription_items (prescription_id, name, dosage, duration, frequency)
-OUTPUT inserted.item_id, inserted.prescription_id, inserted.name, inserted.dosage, inserted.duration, inserted.frequency
-VALUES (@PrescriptionId, @Name, @Dosage, @Duration, @Frequency);
+VALUES (@PrescriptionId, @MedicationName, @Dosage, @Duration, @Frequency);
 ";
 
-        public static async Task<OperationResult<PrescriptionItemDto>> ExecuteAsync(
-            PrescriptionItemDto dto,
-            ILogger logger)
+        public static async Task<OperationResult<bool>> ExecuteAsync(PrescriptionItemAddDto dto, ILogger logger)
         {
             if (dto == null)
             {
-                logger.LogError("CreatePrescriptionItemCommand received null prescription item data");
-                return OperationResult<PrescriptionItemDto>.Failure("Prescription item data is required");
+                logger.LogError("CreatePrescriptionItemCommand received null dto");
+                return OperationResult<bool>.Failure("Prescription item data is required");
             }
-
-            logger.LogInformation("Executing prescription item creation for PrescriptionId: {PrescriptionId}", dto.PrescriptionId);
 
             try
             {
                 using var connection = new SqlConnection(DatabaseSettings.ConnectionString);
                 await connection.OpenAsync();
 
-                using var command = CreateCommand(connection, dto);
-                using var reader = await command.ExecuteReaderAsync();
+                using var command = new SqlCommand(CreateSql, connection);
+                command.Parameters.AddWithValue("@PrescriptionId", dto.PrescriptionId);
+                command.Parameters.AddWithValue("@MedicationName", dto.MedicationName ?? string.Empty);
+                command.Parameters.AddWithValue("@Dosage", dto.Dosage ?? string.Empty);
+                command.Parameters.AddWithValue("@Duration", dto.Duration ?? string.Empty);
+                command.Parameters.AddWithValue("@Frequency", dto.Frequency ?? string.Empty);
 
-                return await ProcessResultAsync(reader, logger, dto.PrescriptionId);
-            }
-            catch (SqlException ex)
-            {
-                logger.LogError(ex, "Database error during prescription item creation for PrescriptionId: {PrescriptionId}. Error: {Error}",
-                    dto.PrescriptionId, ex.Message);
-                return OperationResult<PrescriptionItemDto>.Failure("Database operation failed");
+                var rows = await command.ExecuteNonQueryAsync();
+                if (rows > 0)
+                {
+                    return OperationResult<bool>.Success(true, "Prescription item created successfully");
+                }
+                return OperationResult<bool>.Failure("Failed to create prescription item");
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Unexpected error during prescription item creation for PrescriptionId: {PrescriptionId}", dto.PrescriptionId);
-                return OperationResult<PrescriptionItemDto>.Failure("Prescription item creation failed due to system error");
+                logger.LogError(ex, "Error creating prescription item: {Error}", ex.Message);
+                return OperationResult<bool>.Failure("Database operation failed");
             }
-        }
-
-        private static SqlCommand CreateCommand(SqlConnection connection, PrescriptionItemDto dto)
-        {
-            var command = new SqlCommand(CreatePrescriptionItemSql, connection);
-            command.Parameters.AddWithValue("@PrescriptionId", dto.PrescriptionId);
-            command.Parameters.AddWithValue("@Name", dto.Name ?? string.Empty);
-            command.Parameters.AddWithValue("@Dosage", dto.Dosage ?? string.Empty);
-            command.Parameters.AddWithValue("@Duration", dto.Duration ?? string.Empty);
-            command.Parameters.AddWithValue("@Frequency", dto.Frequency ?? string.Empty);
-            return command;
-        }
-
-        private static async Task<OperationResult<PrescriptionItemDto>> ProcessResultAsync(
-            SqlDataReader reader,
-            ILogger logger,
-            int prescriptionId)
-        {
-            if (!await reader.ReadAsync())
-            {
-                logger.LogWarning("No result returned from prescription item creation for PrescriptionId: {PrescriptionId}", prescriptionId);
-                return OperationResult<PrescriptionItemDto>.Failure("Prescription item creation returned no result");
-            }
-
-            var prescriptionItem = PrescriptionItemMapper.MapFromReader(reader);
-            logger.LogInformation("Prescription item created successfully - ItemId: {ItemId}", prescriptionItem.ItemId);
-
-            return OperationResult<PrescriptionItemDto>.Success(prescriptionItem, "Prescription item created successfully");
         }
     }
 }

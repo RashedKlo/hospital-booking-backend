@@ -27,6 +27,12 @@ using hospital_booking.Services.Patient;
 using hospital_booking.Services.Prescription;
 using hospital_booking.Services.PrescriptionItem;
 using hospital_booking.Services.MedicalReport;
+using hospital_booking.Data.Repositories.ClinicService;
+using hospital_booking.Services.ClinicService;
+using hospital_booking.Data.Repositories.ClinicReview;
+using hospital_booking.Services.ClinicReview;
+using hospital_booking.Data.Repositories.ClinicFacility;
+using hospital_booking.Services.ClinicFacility;
 using hospital_booking.Data.Helpers;
 using hospital_booking.Data.Settings;
 
@@ -46,6 +52,9 @@ namespace hospital_booking.Api.Extensions
             services.AddScoped<IPrescriptionRepository, PrescriptionRepository>();
             services.AddScoped<IPrescriptionItemRepository, PrescriptionItemRepository>();
             services.AddScoped<IMedicalReportRepository, MedicalReportRepository>();
+            services.AddScoped<IClinicServiceRepository, ClinicServiceRepository>();
+            services.AddScoped<IClinicReviewRepository, ClinicReviewRepository>();
+            services.AddScoped<IClinicFacilityRepository, ClinicFacilityRepository>();
 
             // Register services
             services.AddScoped<IUserService, UserService>();
@@ -57,6 +66,9 @@ namespace hospital_booking.Api.Extensions
             services.AddScoped<IPrescriptionService, PrescriptionService>();
             services.AddScoped<IPrescriptionItemService, PrescriptionItemService>();
             services.AddScoped<IMedicalReportService, MedicalReportService>();
+            services.AddScoped<IClinicServicesService, ClinicServicesService>();
+            services.AddScoped<IClinicReviewService, ClinicReviewService>();
+            services.AddScoped<IClinicFacilityService, ClinicFacilityService>();
 
             services.AddSingleton(JwtSettings.LoadFromConfiguration(
                 services.BuildServiceProvider().GetRequiredService<IConfiguration>()));

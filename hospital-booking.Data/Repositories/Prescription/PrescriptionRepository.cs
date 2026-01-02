@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using hospital_booking.Data.DTOs.Prescription;
 using hospital_booking.Data.Interfaces;
@@ -19,14 +18,14 @@ namespace hospital_booking.Data.Repositories.Prescription
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public async Task<OperationResult<PrescriptionDto>> CreatePrescriptionAsync(PrescriptionDto prescriptionDto)
+        public async Task<OperationResult<bool>> CreatePrescriptionAsync(PrescriptionAddDto dto)
         {
-            return await CreatePrescriptionCommand.ExecuteAsync(prescriptionDto, _logger);
+            return await CreatePrescriptionCommand.ExecuteAsync(dto, _logger);
         }
 
-        public async Task<OperationResult<PrescriptionDto>> UpdatePrescriptionAsync(int prescriptionId, PrescriptionDto prescriptionDto)
+        public async Task<OperationResult<PrescriptionDto>> UpdatePrescriptionAsync(int prescriptionId, PrescriptionUpdateDto dto)
         {
-            return await UpdatePrescriptionCommand.ExecuteAsync(prescriptionId, prescriptionDto, _logger);
+            return await UpdatePrescriptionCommand.ExecuteAsync(prescriptionId, dto, _logger);
         }
 
         public async Task<OperationResult<bool>> DeletePrescriptionAsync(int prescriptionId)
@@ -39,14 +38,9 @@ namespace hospital_booking.Data.Repositories.Prescription
             return await GetPrescriptionQuery.ExecuteAsync(prescriptionId, _logger);
         }
 
-        public async Task<OperationResult<List<PrescriptionDto>>> GetPrescriptionsAsync(int page, int limit)
+        public async Task<OperationResult<PrescriptionsDto>> GetPrescriptionsAsync(PrescriptionsRequestDto requestDto)
         {
-            return await GetPrescriptionsQuery.ExecuteAsync(page, limit, _logger);
-        }
-
-        public async Task<OperationResult<List<PrescriptionDto>>> GetPrescriptionsByAppointmentAsync(int appointmentId)
-        {
-            return await GetPrescriptionsByAppointmentQuery.ExecuteAsync(appointmentId, _logger);
+            return await GetPrescriptionsQuery.ExecuteAsync(requestDto, _logger);
         }
     }
 }

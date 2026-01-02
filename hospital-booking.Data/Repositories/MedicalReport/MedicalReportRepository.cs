@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using hospital_booking.Data.DTOs.MedicalReport;
 using hospital_booking.Data.Interfaces;
@@ -19,14 +18,14 @@ namespace hospital_booking.Data.Repositories.MedicalReport
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public async Task<OperationResult<MedicalReportDto>> CreateMedicalReportAsync(MedicalReportDto medicalReportDto)
+        public async Task<OperationResult<bool>> CreateMedicalReportAsync(MedicalReportAddDto dto)
         {
-            return await CreateMedicalReportCommand.ExecuteAsync(medicalReportDto, _logger);
+            return await CreateMedicalReportCommand.ExecuteAsync(dto, _logger);
         }
 
-        public async Task<OperationResult<MedicalReportDto>> UpdateMedicalReportAsync(int reportId, MedicalReportDto medicalReportDto)
+        public async Task<OperationResult<MedicalReportDto>> UpdateMedicalReportAsync(int reportId, MedicalReportUpdateDto dto)
         {
-            return await UpdateMedicalReportCommand.ExecuteAsync(reportId, medicalReportDto, _logger);
+            return await UpdateMedicalReportCommand.ExecuteAsync(reportId, dto, _logger);
         }
 
         public async Task<OperationResult<bool>> DeleteMedicalReportAsync(int reportId)
@@ -39,14 +38,9 @@ namespace hospital_booking.Data.Repositories.MedicalReport
             return await GetMedicalReportQuery.ExecuteAsync(reportId, _logger);
         }
 
-        public async Task<OperationResult<List<MedicalReportDto>>> GetMedicalReportsAsync(int page, int limit)
+        public async Task<OperationResult<MedicalReportsDto>> GetMedicalReportsAsync(MedicalReportsRequestDto requestDto)
         {
-            return await GetMedicalReportsQuery.ExecuteAsync(page, limit, _logger);
-        }
-
-        public async Task<OperationResult<List<MedicalReportDto>>> GetMedicalReportsByAppointmentAsync(int appointmentId)
-        {
-            return await GetMedicalReportsByAppointmentQuery.ExecuteAsync(appointmentId, _logger);
+            return await GetMedicalReportsQuery.ExecuteAsync(requestDto, _logger);
         }
     }
 }

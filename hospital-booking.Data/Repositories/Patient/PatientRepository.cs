@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using hospital_booking.Data.DTOs.Patient;
 using hospital_booking.Data.Interfaces;
@@ -19,12 +18,12 @@ namespace hospital_booking.Data.Repositories.Patient
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public async Task<OperationResult<PatientDto>> CreatePatientAsync(PatientDto dto)
+        public async Task<OperationResult<bool>> CreatePatientAsync(PatientAddDto dto)
         {
             return await CreatePatientCommand.ExecuteAsync(dto, _logger);
         }
 
-        public async Task<OperationResult<PatientDto>> UpdatePatientAsync(int patientId, PatientDto dto)
+        public async Task<OperationResult<PatientDto>> UpdatePatientAsync(int patientId, PatientUpdateDto dto)
         {
             return await UpdatePatientCommand.ExecuteAsync(patientId, dto, _logger);
         }
@@ -39,9 +38,9 @@ namespace hospital_booking.Data.Repositories.Patient
             return await GetPatientQuery.ExecuteAsync(patientId, _logger);
         }
 
-        public async Task<OperationResult<List<PatientDto>>> GetPatientsAsync(int page, int limit)
+        public async Task<OperationResult<PatientsDto>> GetPatientsAsync(PatientsRequestDto requestDto)
         {
-            return await GetPatientsQuery.ExecuteAsync(page, limit, _logger);
+            return await GetPatientsQuery.ExecuteAsync(requestDto, _logger);
         }
     }
 }

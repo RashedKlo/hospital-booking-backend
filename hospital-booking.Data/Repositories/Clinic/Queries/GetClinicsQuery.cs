@@ -5,6 +5,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using hospital_booking.Data.Settings;
 using hospital_booking.Data.DTOs.Clinic;
+using hospital_booking.Data.DTOs.Admin; // For PaginationDto
 using hospital_booking.Data.Results;
 using hospital_booking.Data.Repositories.Clinic.Helpers;
 
@@ -12,86 +13,119 @@ namespace hospital_booking.Data.Repositories.Clinic.Queries
 {
     public class GetClinicsQuery
     {
-        private const string GetClinicsSql = @"
-    SELECT
-        clinic_id,
-        title,
-        description,
-        phone,
-        address
-    FROM dbo.clinics
-    ORDER BY clinic_id
-    OFFSET @Offset ROWS
-    FETCH NEXT @Limit ROWS ONLY;
-    ";
-
-        public static async Task<OperationResult<List<ClinicDto>>> ExecuteAsync(
-            int page,
-            int limit,
+        public static async Task<OperationResult<ClinicsDto>> ExecuteAsync(
+            ClinicsRequestDto requestDto, 
             ILogger logger)
         {
-            if (page <= 0)
+            if (requestDto == null || requestDto.Page <= 0 || requestDto.Limit <= 0)
             {
-                logger.LogError("GetClinicsQuery received invalid page: {Page}", page);
-                return OperationResult<List<ClinicDto>>.Failure("Page must be greater than 0");
+                logger.LogError("GetClinicsQuery received invalid params");
+                return OperationResult<ClinicsDto>.Failure("Invalid parameters");
             }
 
-            if (limit <= 0 || limit > 1000)
+            try 
             {
-                logger.LogError("GetClinicsQuery received invalid limit: {Limit}", limit);
-                return OperationResult<List<ClinicDto>>.Failure("Limit must be between 1 and 1000");
-            }
+                var (sql, parameters) = BuildQuery(requestDto);
 
-            logger.LogInformation("Executing getting clinics with page: {Page}, limit: {Limit}", page, limit);
-
-            try
-            {
                 using var connection = new SqlConnection(DatabaseSettings.ConnectionString);
                 await connection.OpenAsync();
 
-                using var command = CreateCommand(connection, page, limit);
-                using var reader = await command.ExecuteReaderAsync();
+                using var command = new SqlCommand(sql, connection);
+                foreach (var param in parameters)
+                {
+                    command.Parameters.AddWithValue(param.Key, param.Value);
+                }
 
-                return await ProcessResultAsync(reader, logger, page, limit);
-            }
-            catch (SqlException ex)
-            {
-                logger.LogError(ex, "Database error during getting clinics. Error: {Error}", ex.Message);
-                return OperationResult<List<ClinicDto>>.Failure("Database operation failed");
+                using var reader = await command.ExecuteReaderAsync();
+                
+                int totalCount = 0;
+                if (await reader.ReadAsync())
+                {
+                    totalCount = reader.GetInt32(0);
+                }
+
+                await reader.NextResultAsync();
+
+                var clinics = new List<ClinicDto>();
+                while (await reader.ReadAsync())
+                {
+                    clinics.Add(ClinicMapper.MapFromReader(reader));
+                }
+
+                var totalPages = (int)Math.Ceiling((double)totalCount / requestDto.Limit);
+                var resultDto = new ClinicsDto
+                {
+                    Clinics = clinics,
+                    Pagination = new PaginationDto
+                    {
+                        Page = requestDto.Page,
+                        PageSize = requestDto.Limit,
+                        TotalCount = totalCount,
+                        TotalPages = totalPages,
+                        HasPrevious = requestDto.Page > 1,
+                        HasNext = requestDto.Page < totalPages
+                    }
+                };
+
+                return OperationResult<ClinicsDto>.Success(resultDto, "Clinics retrieved successfully");
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Unexpected error during getting clinics");
-                return OperationResult<List<ClinicDto>>.Failure("Getting clinics failed due to system error");
+                logger.LogError(ex, "Error retrieving clinics: {Error}", ex.Message);
+                return OperationResult<ClinicsDto>.Failure("Database operation failed");
             }
         }
 
-        private static SqlCommand CreateCommand(SqlConnection connection, int page, int limit)
+        private static (string sql, Dictionary<string, object> parameters) BuildQuery(ClinicsRequestDto request)
         {
-            var command = new SqlCommand(GetClinicsSql, connection);
-            var offset = (page - 1) * limit;
-            command.Parameters.AddWithValue("@Offset", offset);
-            command.Parameters.AddWithValue("@Limit", limit);
-            return command;
-        }
+            var whereConditions = new List<string>();
+            var parameters = new Dictionary<string, object>();
 
-        private static async Task<OperationResult<List<ClinicDto>>> ProcessResultAsync(
-            SqlDataReader reader,
-            ILogger logger,
-            int page,
-            int limit)
-        {
-            var clinics = new List<ClinicDto>();
+            var offset = (request.Page - 1) * request.Limit;
+            parameters.Add("@Offset", offset);
+            parameters.Add("@Limit", request.Limit);
 
-            while (await reader.ReadAsync())
+            // Search Logic
+            if (!string.IsNullOrWhiteSpace(request.SearchQuery))
             {
-                clinics.Add(ClinicMapper.MapFromReader(reader));
+                var search = $"%{request.SearchQuery.Trim()}%";
+                whereConditions.Add("(name LIKE @Search OR description LIKE @Search OR address LIKE @Search)");
+                parameters.Add("@Search", search);
             }
 
-            logger.LogInformation("Getting clinics successfully - Count: {Count}, Page: {Page}, Limit: {Limit}",
-                clinics.Count, page, limit);
+            // Specific Filters
+            if (request.MinRating.HasValue)
+            {
+                whereConditions.Add("rating >= @MinRating");
+                parameters.Add("@MinRating", request.MinRating.Value);
+            }
 
-            return OperationResult<List<ClinicDto>>.Success(clinics, "Clinics retrieved successfully");
+            if (!string.IsNullOrWhiteSpace(request.Address))
+            {
+                var addrFilter = $"%{request.Address.Trim()}%";
+                whereConditions.Add("address LIKE @AddressFilter");
+                parameters.Add("@AddressFilter", addrFilter);
+            }
+
+            var whereClause = whereConditions.Count > 0 
+                ? "WHERE " + string.Join(" AND ", whereConditions)
+                : "";
+
+            var sql = $@"
+-- Count
+SELECT COUNT(*) FROM dbo.clinics {whereClause};
+
+-- Data
+SELECT 
+    clinic_id, name, description, address, phone, email, website, image_url, 
+    rating, review_count, opening_hours, latitude, longitude, created_at, updated_at
+FROM dbo.clinics
+{whereClause}
+ORDER BY clinic_id
+OFFSET @Offset ROWS
+FETCH NEXT @Limit ROWS ONLY;
+";
+            return (sql, parameters);
         }
     }
 }

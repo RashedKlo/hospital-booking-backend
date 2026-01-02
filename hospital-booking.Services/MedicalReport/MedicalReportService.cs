@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using hospital_booking.Data.DTOs.MedicalReport;
 using hospital_booking.Data.Interfaces;
@@ -12,11 +11,16 @@ namespace hospital_booking.Services.MedicalReport
     public sealed class MedicalReportService : IMedicalReportService
     {
         private readonly IMedicalReportRepository _medicalReportRepository;
+        private readonly IAppointmentRepository _appointmentRepository;
         private readonly ILogger<MedicalReportService> _logger;
 
-        public MedicalReportService(IMedicalReportRepository medicalReportRepository, ILogger<MedicalReportService> logger)
+        public MedicalReportService(
+            IMedicalReportRepository medicalReportRepository, 
+            IAppointmentRepository appointmentRepository,
+            ILogger<MedicalReportService> logger)
         {
             _medicalReportRepository = medicalReportRepository ?? throw new ArgumentNullException(nameof(medicalReportRepository));
+            _appointmentRepository = appointmentRepository ?? throw new ArgumentNullException(nameof(appointmentRepository));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -36,71 +40,54 @@ namespace hospital_booking.Services.MedicalReport
             return OperationResult<MedicalReportDto>.Success(result.Data!, result.Message);
         }
 
-        public async Task<OperationResult<List<MedicalReportDto>>> GetMedicalReportsAsync(int page, int limit)
+        public async Task<OperationResult<MedicalReportsDto>> GetMedicalReportsAsync(MedicalReportsRequestDto requestDto)
         {
-            _logger.LogInformation("Fetching medical reports - Page: {Page}, Limit: {Limit}", page, limit);
+            _logger.LogInformation("Fetching medical reports - Page: {Page}, Limit: {Limit}", requestDto.Page, requestDto.Limit);
 
-            var result = await _medicalReportRepository.GetMedicalReportsAsync(page, limit);
+            var result = await _medicalReportRepository.GetMedicalReportsAsync(requestDto);
 
             if (!result.IsSuccess)
             {
                 _logger.LogWarning("Failed to fetch medical reports: {Message}", result.Message);
-                return OperationResult<List<MedicalReportDto>>.Failure(result.Message);
+                return OperationResult<MedicalReportsDto>.Failure(result.Message);
             }
 
-            _logger.LogInformation("Fetched {Count} medical reports successfully", result.Data?.Count ?? 0);
-            return OperationResult<List<MedicalReportDto>>.Success(result.Data!, result.Message);
+            return OperationResult<MedicalReportsDto>.Success(result.Data!, result.Message);
         }
 
-        public async Task<OperationResult<List<MedicalReportDto>>> GetMedicalReportsByAppointmentAsync(int appointmentId)
+        public async Task<OperationResult<bool>> CreateMedicalReportAsync(MedicalReportAddDto dto)
         {
-            _logger.LogInformation("Fetching medical reports by AppointmentId: {AppointmentId}", appointmentId);
+            _logger.LogInformation("Creating medical report for AppointmentId: {AppointmentId}", dto?.AppointmentId);
 
-            var result = await _medicalReportRepository.GetMedicalReportsByAppointmentAsync(appointmentId);
-
-            if (!result.IsSuccess)
+            var validationResult = await MedicalReportValidation.ValidateAddAsync(dto!, _appointmentRepository, _logger);
+            if (!validationResult.IsSuccess)
             {
-                _logger.LogWarning("Failed to fetch medical reports for appointment {AppointmentId}: {Message}", appointmentId, result.Message);
-                return OperationResult<List<MedicalReportDto>>.Failure(result.Message);
+                return OperationResult<bool>.Failure(validationResult.Message);
             }
 
-            _logger.LogInformation("Fetched {Count} medical reports for AppointmentId: {AppointmentId}", result.Data?.Count ?? 0, appointmentId);
-            return OperationResult<List<MedicalReportDto>>.Success(result.Data!, result.Message);
-        }
-
-        public async Task<OperationResult<MedicalReportDto>> CreateMedicalReportAsync(MedicalReportDto medicalReportDto)
-        {
-            if (medicalReportDto == null)
-            {
-                _logger.LogWarning("Create medical report attempted with null data");
-                return OperationResult<MedicalReportDto>.Failure("Medical report data is required");
-            }
-
-            _logger.LogInformation("Creating medical report for AppointmentId: {AppointmentId}", medicalReportDto.AppointmentId);
-
-            var result = await _medicalReportRepository.CreateMedicalReportAsync(medicalReportDto);
+            var result = await _medicalReportRepository.CreateMedicalReportAsync(dto!);
 
             if (!result.IsSuccess)
             {
                 _logger.LogWarning("Failed to create medical report: {Message}", result.Message);
-                return OperationResult<MedicalReportDto>.Failure(result.Message);
+                return OperationResult<bool>.Failure(result.Message);
             }
 
-            _logger.LogInformation("Medical report created successfully - ReportId: {ReportId}", result.Data?.ReportId);
-            return OperationResult<MedicalReportDto>.Success(result.Data!, result.Message);
+            _logger.LogInformation("Medical report created successfully");
+            return OperationResult<bool>.Success(true, result.Message);
         }
 
-        public async Task<OperationResult<MedicalReportDto>> UpdateMedicalReportAsync(int reportId, MedicalReportDto medicalReportDto)
+        public async Task<OperationResult<MedicalReportDto>> UpdateMedicalReportAsync(int reportId, MedicalReportUpdateDto dto)
         {
-            if (medicalReportDto == null)
-            {
-                _logger.LogWarning("Update medical report attempted with null data");
-                return OperationResult<MedicalReportDto>.Failure("Medical report data is required");
-            }
-
             _logger.LogInformation("Updating medical report: {ReportId}", reportId);
 
-            var result = await _medicalReportRepository.UpdateMedicalReportAsync(reportId, medicalReportDto);
+            var validationResult = await MedicalReportValidation.ValidateUpdateAsync(reportId, dto, _medicalReportRepository, _logger);
+            if (!validationResult.IsSuccess)
+            {
+                return OperationResult<MedicalReportDto>.Failure(validationResult.Message);
+            }
+
+            var result = await _medicalReportRepository.UpdateMedicalReportAsync(reportId, dto);
 
             if (!result.IsSuccess)
             {
@@ -127,5 +114,6 @@ namespace hospital_booking.Services.MedicalReport
             _logger.LogInformation("Medical report deleted successfully - ReportId: {ReportId}", reportId);
             return OperationResult<bool>.Success(result.Data, result.Message);
         }
+
     }
 }

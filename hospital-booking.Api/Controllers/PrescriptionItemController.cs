@@ -2,6 +2,9 @@ using Microsoft.AspNetCore.Mvc;
 using hospital_booking.Data.DTOs.PrescriptionItem;
 using hospital_booking.Services.Interfaces;
 using hospital_booking.Api.Responses;
+using System.Linq; 
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace hospital_booking.Api.Controllers
 {
@@ -37,48 +40,30 @@ namespace hospital_booking.Api.Controllers
         }
 
         /// <summary>
-        /// Get all prescription items with pagination
+        /// Get all prescription items with filtering and pagination
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> GetPrescriptionItems([FromQuery] int page = 1, [FromQuery] int limit = 10)
+        public async Task<IActionResult> GetPrescriptionItems([FromQuery] PrescriptionItemsRequestDto requestDto)
         {
-            _logger.LogInformation("Getting prescription items - Page: {Page}, Limit: {Limit}", page, limit);
+            _logger.LogInformation("Getting prescription items - Page: {Page}, Limit: {Limit}", requestDto.Page, requestDto.Limit);
 
-            var result = await _prescriptionItemService.GetPrescriptionItemsAsync(page, limit);
+            var result = await _prescriptionItemService.GetPrescriptionItemsAsync(requestDto);
             if (!result.IsSuccess)
             {
                 _logger.LogWarning("Failed to get prescription items: {Message}", result.Message);
                 return BadRequest(new ErrorResponse(result.Message, result.Errors.ToList()));
             }
 
-            return Ok(new SuccessResponse<List<PrescriptionItemDto>>(result.Data!, result.Message));
-        }
-
-        /// <summary>
-        /// Get prescription items by prescription ID
-        /// </summary>
-        [HttpGet("prescription/{prescriptionId}")]
-        public async Task<IActionResult> GetPrescriptionItemsByPrescription(int prescriptionId)
-        {
-            _logger.LogInformation("Getting prescription items by PrescriptionId: {PrescriptionId}", prescriptionId);
-
-            var result = await _prescriptionItemService.GetPrescriptionItemsByPrescriptionAsync(prescriptionId);
-            if (!result.IsSuccess)
-            {
-                _logger.LogWarning("Failed to get prescription items for prescription {PrescriptionId}: {Message}", prescriptionId, result.Message);
-                return BadRequest(new ErrorResponse(result.Message, result.Errors.ToList()));
-            }
-
-            return Ok(new SuccessResponse<List<PrescriptionItemDto>>(result.Data!, result.Message));
+            return Ok(new SuccessResponse<PrescriptionItemsDto>(result.Data!, result.Message));
         }
 
         /// <summary>
         /// Create a new prescription item
         /// </summary>
         [HttpPost]
-        public async Task<IActionResult> CreatePrescriptionItem([FromBody] PrescriptionItemDto dto)
+        public async Task<IActionResult> CreatePrescriptionItem([FromBody] PrescriptionItemAddDto dto)
         {
-            _logger.LogInformation("Creating prescription item: {Name} for PrescriptionId: {PrescriptionId}", dto.Name, dto.PrescriptionId);
+            _logger.LogInformation("Creating prescription item: {Name} for PrescriptionId: {PrescriptionId}", dto.MedicationName, dto.PrescriptionId);
 
             var result = await _prescriptionItemService.CreatePrescriptionItemAsync(dto);
             if (!result.IsSuccess)
@@ -87,15 +72,15 @@ namespace hospital_booking.Api.Controllers
                 return BadRequest(new ErrorResponse(result.Message, result.Errors.ToList()));
             }
 
-            _logger.LogInformation("Prescription item created successfully - ItemId: {ItemId}", result.Data?.ItemId);
-            return CreatedAtAction(nameof(GetPrescriptionItem), new { id = result.Data?.ItemId }, new SuccessResponse<PrescriptionItemDto>(result.Data!, result.Message));
+            _logger.LogInformation("Prescription item created successfully");
+            return Ok(new SuccessResponse<bool>(result.Data, result.Message));
         }
 
         /// <summary>
         /// Update an existing prescription item
         /// </summary>
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdatePrescriptionItem(int id, [FromBody] PrescriptionItemDto dto)
+        public async Task<IActionResult> UpdatePrescriptionItem(int id, [FromBody] PrescriptionItemUpdateDto dto)
         {
             _logger.LogInformation("Updating prescription item: {ItemId}", id);
 
@@ -106,7 +91,7 @@ namespace hospital_booking.Api.Controllers
                 return BadRequest(new ErrorResponse(result.Message, result.Errors.ToList()));
             }
 
-            _logger.LogInformation("Prescription item updated successfully - ItemId: {ItemId}", result.Data?.ItemId);
+            _logger.LogInformation("Prescription item updated successfully - ItemId: {ItemId}", result.Data?.PrescriptionItemId);
             return Ok(new SuccessResponse<PrescriptionItemDto>(result.Data!, result.Message));
         }
 

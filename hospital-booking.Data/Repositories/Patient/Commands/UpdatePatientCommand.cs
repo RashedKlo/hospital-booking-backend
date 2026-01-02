@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 using hospital_booking.Data.Settings;
 using hospital_booking.Data.DTOs.Patient;
 using hospital_booking.Data.Results;
-using hospital_booking.Data.Repositories.Patient.Helpers;
+using hospital_booking.Data.Repositories.Patient.Queries;
 
 namespace hospital_booking.Data.Repositories.Patient.Commands
 {
@@ -13,25 +13,17 @@ namespace hospital_booking.Data.Repositories.Patient.Commands
     {
         private const string UpdateSql = @"
 UPDATE dbo.patients
-SET user_id = @UserId,
-    full_name = @FullName,
-    birthDate = @BirthDate,
-    gender = @Gender,
-    notes = @Notes
-WHERE patient_id = @PatientId;
-
-SELECT patient_id, user_id, full_name, birthDate, gender, notes
-FROM dbo.patients
+SET full_name = ISNULL(@FullName, full_name),
+    birthDate = ISNULL(@BirthDate, birthDate),
+    gender = ISNULL(@Gender, gender),
+    notes = ISNULL(@Notes, notes)
 WHERE patient_id = @PatientId;
 ";
 
-        public static async Task<OperationResult<PatientDto>> ExecuteAsync(int patientId, PatientDto dto, ILogger logger)
+        public static async Task<OperationResult<PatientDto>> ExecuteAsync(int patientId, PatientUpdateDto dto, ILogger logger)
         {
-            if (dto == null)
-            {
-                logger.LogError("UpdatePatientCommand received null dto");
-                return OperationResult<PatientDto>.Failure("Patient data is required");
-            }
+            if (patientId <= 0) return OperationResult<PatientDto>.Failure("Invalid patient ID");
+            if (dto == null) return OperationResult<PatientDto>.Failure("Data is required");
 
             try
             {
@@ -40,26 +32,24 @@ WHERE patient_id = @PatientId;
 
                 using var command = new SqlCommand(UpdateSql, connection);
                 command.Parameters.AddWithValue("@PatientId", patientId);
-                command.Parameters.AddWithValue("@UserId", (object?)dto.UserId ?? DBNull.Value);
-                command.Parameters.AddWithValue("@FullName", dto.FullName ?? string.Empty);
+                command.Parameters.AddWithValue("@FullName", (object?)dto.FullName ?? DBNull.Value);
                 command.Parameters.AddWithValue("@BirthDate", (object?)dto.BirthDate ?? DBNull.Value);
-                command.Parameters.AddWithValue("@Gender", dto.Gender ?? string.Empty);
-                command.Parameters.AddWithValue("@Notes", dto.Notes ?? string.Empty);
+                command.Parameters.AddWithValue("@Gender", (object?)dto.Gender ?? DBNull.Value);
+                command.Parameters.AddWithValue("@Notes", (object?)dto.Notes ?? DBNull.Value);
 
-                using var reader = await command.ExecuteReaderAsync();
-                if (!await reader.ReadAsync())
+                var rows = await command.ExecuteNonQueryAsync();
+                if (rows == 0)
                 {
                     return OperationResult<PatientDto>.Failure("Patient not found");
                 }
-
-                var patient = PatientMapper.MapFromReader(reader);
-                return OperationResult<PatientDto>.Success(patient, "Patient updated successfully");
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Error updating patient: {Error}", ex.Message);
                 return OperationResult<PatientDto>.Failure("Database operation failed");
             }
+
+            return await GetPatientQuery.ExecuteAsync(patientId, logger);
         }
     }
 }

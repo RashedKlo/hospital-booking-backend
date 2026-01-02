@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using hospital_booking.Data.DTOs.Patient;
 using hospital_booking.Data.Interfaces;
@@ -36,55 +35,54 @@ namespace hospital_booking.Services.Patient
             return OperationResult<PatientDto>.Success(result.Data!, result.Message);
         }
 
-        public async Task<OperationResult<List<PatientDto>>> GetPatientsAsync(int page, int limit)
+        public async Task<OperationResult<PatientsDto>> GetPatientsAsync(PatientsRequestDto requestDto)
         {
-            _logger.LogInformation("Fetching patients - Page: {Page}, Limit: {Limit}", page, limit);
+            _logger.LogInformation("Fetching patients - Page: {Page}, Limit: {Limit}", requestDto.Page, requestDto.Limit);
 
-            var result = await _patientRepository.GetPatientsAsync(page, limit);
+            var result = await _patientRepository.GetPatientsAsync(requestDto);
 
             if (!result.IsSuccess)
             {
                 _logger.LogWarning("Failed to fetch patients: {Message}", result.Message);
-                return OperationResult<List<PatientDto>>.Failure(result.Message);
+                return OperationResult<PatientsDto>.Failure(result.Message);
             }
 
-            _logger.LogInformation("Fetched {Count} patients successfully", result.Data?.Count ?? 0);
-            return OperationResult<List<PatientDto>>.Success(result.Data!, result.Message);
+            return OperationResult<PatientsDto>.Success(result.Data!, result.Message);
         }
 
-        public async Task<OperationResult<PatientDto>> CreatePatientAsync(PatientDto patientDto)
+        public async Task<OperationResult<bool>> CreatePatientAsync(PatientAddDto dto)
         {
-            if (patientDto == null)
+            _logger.LogInformation("Creating patient: {FullName}", dto?.FullName);
+
+            var validationResult = await PatientValidation.ValidateAddAsync(dto!, _logger);
+            if (!validationResult.IsSuccess)
             {
-                _logger.LogWarning("Create patient attempted with null data");
-                return OperationResult<PatientDto>.Failure("Patient data is required");
+                return OperationResult<bool>.Failure(validationResult.Message);
             }
 
-            _logger.LogInformation("Creating patient: {FullName}", patientDto.FullName);
-
-            var result = await _patientRepository.CreatePatientAsync(patientDto);
+            var result = await _patientRepository.CreatePatientAsync(dto!);
 
             if (!result.IsSuccess)
             {
                 _logger.LogWarning("Failed to create patient: {Message}", result.Message);
-                return OperationResult<PatientDto>.Failure(result.Message);
+                return OperationResult<bool>.Failure(result.Message);
             }
 
-            _logger.LogInformation("Patient created successfully - PatientId: {PatientId}", result.Data?.PatientId);
-            return OperationResult<PatientDto>.Success(result.Data!, result.Message);
+            _logger.LogInformation("Patient created successfully");
+            return OperationResult<bool>.Success(true, result.Message);
         }
 
-        public async Task<OperationResult<PatientDto>> UpdatePatientAsync(int patientId, PatientDto patientDto)
+        public async Task<OperationResult<PatientDto>> UpdatePatientAsync(int patientId, PatientUpdateDto dto)
         {
-            if (patientDto == null)
-            {
-                _logger.LogWarning("Update patient attempted with null data");
-                return OperationResult<PatientDto>.Failure("Patient data is required");
-            }
-
             _logger.LogInformation("Updating patient: {PatientId}", patientId);
 
-            var result = await _patientRepository.UpdatePatientAsync(patientId, patientDto);
+            var validationResult = await PatientValidation.ValidateUpdateAsync(patientId, dto, _patientRepository, _logger);
+            if (!validationResult.IsSuccess)
+            {
+                return OperationResult<PatientDto>.Failure(validationResult.Message);
+            }
+
+            var result = await _patientRepository.UpdatePatientAsync(patientId, dto);
 
             if (!result.IsSuccess)
             {
@@ -95,6 +93,7 @@ namespace hospital_booking.Services.Patient
             _logger.LogInformation("Patient updated successfully - PatientId: {PatientId}", result.Data?.PatientId);
             return OperationResult<PatientDto>.Success(result.Data!, result.Message);
         }
+
 
         public async Task<OperationResult<bool>> DeletePatientAsync(int patientId)
         {

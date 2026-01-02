@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using hospital_booking.Data.DTOs.Clinic;
 using hospital_booking.Data.Interfaces;
@@ -19,14 +18,14 @@ namespace hospital_booking.Data.Repositories.Clinic
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public async Task<OperationResult<ClinicDto>> CreateClinicAsync(ClinicDto clinicDto)
+        public async Task<OperationResult<bool>> CreateClinicAsync(ClinicAddDto dto)
         {
-            return await CreateClinicCommand.ExecuteAsync(clinicDto, _logger);
+            return await CreateClinicCommand.ExecuteAsync(dto, _logger);
         }
 
-        public async Task<OperationResult<ClinicDto>> UpdateClinicAsync(int clinicId, ClinicDto clinicDto)
+        public async Task<OperationResult<ClinicDto>> UpdateClinicAsync(int clinicId, ClinicUpdateDto dto)
         {
-            return await UpdateClinicCommand.ExecuteAsync(clinicId, clinicDto, _logger);
+            return await UpdateClinicCommand.ExecuteAsync(clinicId, dto, _logger);
         }
 
         public async Task<OperationResult<bool>> DeleteClinicAsync(int clinicId)
@@ -39,9 +38,9 @@ namespace hospital_booking.Data.Repositories.Clinic
             return await GetClinicQuery.ExecuteAsync(clinicId, _logger);
         }
 
-        public async Task<OperationResult<List<ClinicDto>>> GetClinicsAsync(int page, int limit)
+        public async Task<OperationResult<ClinicsDto>> GetClinicsAsync(ClinicsRequestDto requestDto)
         {
-            return await GetClinicsQuery.ExecuteAsync(page, limit, _logger);
+            return await GetClinicsQuery.ExecuteAsync(requestDto, _logger);
         }
     }
 }

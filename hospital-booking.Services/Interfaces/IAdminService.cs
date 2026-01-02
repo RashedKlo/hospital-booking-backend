@@ -8,9 +8,11 @@ namespace hospital_booking.Services.Interfaces
     public interface IAdminService
     {
         Task<OperationResult<AdminDto>> GetAdminAsync(int adminId);
-        Task<OperationResult<List<AdminDto>>> GetAdminsAsync(int page, int limit);
-        Task<OperationResult<AdminDto>> CreateAdminAsync(AdminDto adminDto);
-        Task<OperationResult<AdminDto>> UpdateAdminAsync(int adminId, AdminDto adminDto);
+        Task<OperationResult<AdminsDto>> GetAdminsAsync(AdminsRequestDto requestDto);
+        Task<OperationResult<AdminDto>> CreateAdminAsync(AdminAddDto adminDto);
+        Task<OperationResult<AdminDto>> UpdateAdminAsync(int adminId, AdminUpdateDto adminDto);
         Task<OperationResult<bool>> DeleteAdminAsync(int adminId);
+        Task<OperationResult<AdminDto>> GetAdminByEmailAsync(string email);
+        Task<OperationResult<AdminDto>> GetAdminByNameAsync(string fullName);
     }
 }

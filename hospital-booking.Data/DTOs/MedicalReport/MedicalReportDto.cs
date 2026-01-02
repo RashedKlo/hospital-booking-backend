@@ -1,4 +1,4 @@
-using System;
+using hospital_booking.Data.DTOs.Appointment;
 
 namespace hospital_booking.Data.DTOs.MedicalReport
 {
@@ -9,5 +9,8 @@ namespace hospital_booking.Data.DTOs.MedicalReport
         public string Diagnosis { get; set; } = string.Empty;
         public string Notes { get; set; } = string.Empty;
         public string RequiredTests { get; set; } = string.Empty;
+
+        // Nested object
+        public AppointmentDto? Appointment { get; set; }
     }
 }

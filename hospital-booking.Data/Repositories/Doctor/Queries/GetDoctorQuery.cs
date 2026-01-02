@@ -12,23 +12,19 @@ namespace hospital_booking.Data.Repositories.Doctor.Queries
     public class GetDoctorQuery
     {
         private const string GetSql = @"
-SELECT TOP (1)
-    doctor_id,
-    clinic_id,
-    full_name,
-    bio,
-    phone,
-    is_active,
-    experience_years
-FROM dbo.doctors
-WHERE doctor_id = @DoctorId;
+SELECT 
+    d.doctor_id, d.clinic_id, d.full_name, d.bio, d.phone, d.is_active, d.experience_years,
+    c.clinic_id, c.name, c.description, c.address, c.phone, c.email, c.website, c.image_url, 
+    c.rating, c.review_count, c.opening_hours, c.latitude, c.longitude, c.created_at, c.updated_at
+FROM dbo.doctors d
+INNER JOIN dbo.clinics c ON d.clinic_id = c.clinic_id
+WHERE d.doctor_id = @DoctorId;
 ";
 
         public static async Task<OperationResult<DoctorDto>> ExecuteAsync(int doctorId, ILogger logger)
         {
             if (doctorId <= 0)
             {
-                logger.LogError("GetDoctorQuery received invalid id: {DoctorId}", doctorId);
                 return OperationResult<DoctorDto>.Failure("Invalid doctor id");
             }
 

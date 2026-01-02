@@ -5,78 +5,59 @@ using Microsoft.Extensions.Logging;
 using hospital_booking.Data.Settings;
 using hospital_booking.Data.DTOs.Clinic;
 using hospital_booking.Data.Results;
-using hospital_booking.Data.Repositories.Clinic.Helpers;
 
 namespace hospital_booking.Data.Repositories.Clinic.Commands
 {
     public static class CreateClinicCommand
     {
-        private const string CreateClinicSql = @"
-INSERT INTO dbo.clinics (title, description, phone, address)
-OUTPUT inserted.clinic_id, inserted.title, inserted.description, inserted.phone, inserted.address
-VALUES (@Title, @Description, @Phone, @Address);
+        private const string CreateSql = @"
+INSERT INTO dbo.clinics (
+    name, description, address, phone, email, website, image_url, 
+    rating, review_count, opening_hours, latitude, longitude
+)
+VALUES (
+    @Name, @Description, @Address, @Phone, @Email, @Website, @ImageUrl, 
+    0, 0, @OpeningHours, @Latitude, @Longitude
+);
 ";
 
-        public static async Task<OperationResult<ClinicDto>> ExecuteAsync(
-            ClinicDto dto,
-            ILogger logger)
+        public static async Task<OperationResult<bool>> ExecuteAsync(ClinicAddDto dto, ILogger logger)
         {
             if (dto == null)
             {
-                logger.LogError("CreateClinicCommand received null clinic data");
-                return OperationResult<ClinicDto>.Failure("Clinic data is required");
+                logger.LogError("CreateClinicCommand received null dto");
+                return OperationResult<bool>.Failure("Clinic data is required");
             }
-
-            logger.LogInformation("Executing clinic creation for Title: {Title}", dto.Title);
 
             try
             {
                 using var connection = new SqlConnection(DatabaseSettings.ConnectionString);
                 await connection.OpenAsync();
 
-                using var command = CreateCommand(connection, dto);
-                using var reader = await command.ExecuteReaderAsync();
+                using var command = new SqlCommand(CreateSql, connection);
+                command.Parameters.AddWithValue("@Name", dto.Name);
+                command.Parameters.AddWithValue("@Description", (object?)dto.Description ?? DBNull.Value);
+                command.Parameters.AddWithValue("@Address", dto.Address);
+                command.Parameters.AddWithValue("@Phone", dto.Phone);
+                command.Parameters.AddWithValue("@Email", (object?)dto.Email ?? DBNull.Value);
+                command.Parameters.AddWithValue("@Website", (object?)dto.Website ?? DBNull.Value);
+                command.Parameters.AddWithValue("@ImageUrl", (object?)dto.ImageUrl ?? DBNull.Value);
+                command.Parameters.AddWithValue("@OpeningHours", (object?)dto.OpeningHours ?? DBNull.Value);
+                command.Parameters.AddWithValue("@Latitude", (object?)dto.Latitude ?? DBNull.Value);
+                command.Parameters.AddWithValue("@Longitude", (object?)dto.Longitude ?? DBNull.Value);
 
-                return await ProcessResultAsync(reader, logger, dto.Title);
-            }
-            catch (SqlException ex)
-            {
-                logger.LogError(ex, "Database error during clinic creation for {Title}. Error: {Error}",
-                    dto.Title, ex.Message);
-                return OperationResult<ClinicDto>.Failure("Database operation failed");
+                var rows = await command.ExecuteNonQueryAsync();
+                if (rows > 0)
+                {
+                    return OperationResult<bool>.Success(true, "Clinic created successfully");
+                }
+                return OperationResult<bool>.Failure("Failed to create clinic");
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Unexpected error during clinic creation for {Title}", dto.Title);
-                return OperationResult<ClinicDto>.Failure("Clinic creation failed due to system error");
+                logger.LogError(ex, "Error creating clinic: {Error}", ex.Message);
+                return OperationResult<bool>.Failure("Database operation failed");
             }
-        }
-
-        private static SqlCommand CreateCommand(SqlConnection connection, ClinicDto dto)
-        {
-            var command = new SqlCommand(CreateClinicSql, connection);
-            command.Parameters.AddWithValue("@Title", dto.Title ?? string.Empty);
-            command.Parameters.AddWithValue("@Description", dto.Description ?? string.Empty);
-            command.Parameters.AddWithValue("@Phone", dto.Phone ?? string.Empty);
-            command.Parameters.AddWithValue("@Address", dto.Address ?? string.Empty);
-            return command;
-        }
-
-        private static async Task<OperationResult<ClinicDto>> ProcessResultAsync(
-            SqlDataReader reader,
-            ILogger logger,
-            string Title)
-        {
-            if (!await reader.ReadAsync())
-            {
-                logger.LogWarning("No result returned from clinic creation for {Title}", Title);
-                return OperationResult<ClinicDto>.Failure("Clinic creation returned no result");
-            }
-
-            var clinic = ClinicMapper.MapFromReader(reader);
-            logger.LogInformation("Clinic created successfully - ClinicId: {ClinicId}", clinic.ClinicId);
-
-            return OperationResult<ClinicDto>.Success(clinic, "Clinic created successfully");
         }
     }
 }

@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using hospital_booking.Data.DTOs.PrescriptionItem;
 using hospital_booking.Data.Interfaces;
@@ -19,14 +18,14 @@ namespace hospital_booking.Data.Repositories.PrescriptionItem
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public async Task<OperationResult<PrescriptionItemDto>> CreatePrescriptionItemAsync(PrescriptionItemDto prescriptionItemDto)
+        public async Task<OperationResult<bool>> CreatePrescriptionItemAsync(PrescriptionItemAddDto dto)
         {
-            return await CreatePrescriptionItemCommand.ExecuteAsync(prescriptionItemDto, _logger);
+            return await CreatePrescriptionItemCommand.ExecuteAsync(dto, _logger);
         }
 
-        public async Task<OperationResult<PrescriptionItemDto>> UpdatePrescriptionItemAsync(int itemId, PrescriptionItemDto prescriptionItemDto)
+        public async Task<OperationResult<PrescriptionItemDto>> UpdatePrescriptionItemAsync(int itemId, PrescriptionItemUpdateDto dto)
         {
-            return await UpdatePrescriptionItemCommand.ExecuteAsync(itemId, prescriptionItemDto, _logger);
+            return await UpdatePrescriptionItemCommand.ExecuteAsync(itemId, dto, _logger);
         }
 
         public async Task<OperationResult<bool>> DeletePrescriptionItemAsync(int itemId)
@@ -39,14 +38,9 @@ namespace hospital_booking.Data.Repositories.PrescriptionItem
             return await GetPrescriptionItemQuery.ExecuteAsync(itemId, _logger);
         }
 
-        public async Task<OperationResult<List<PrescriptionItemDto>>> GetPrescriptionItemsAsync(int page, int limit)
+        public async Task<OperationResult<PrescriptionItemsDto>> GetPrescriptionItemsAsync(PrescriptionItemsRequestDto requestDto)
         {
-            return await GetPrescriptionItemsQuery.ExecuteAsync(page, limit, _logger);
-        }
-
-        public async Task<OperationResult<List<PrescriptionItemDto>>> GetPrescriptionItemsByPrescriptionAsync(int prescriptionId)
-        {
-            return await GetPrescriptionItemsByPrescriptionQuery.ExecuteAsync(prescriptionId, _logger);
+            return await GetPrescriptionItemsQuery.ExecuteAsync(requestDto, _logger);
         }
     }
 }

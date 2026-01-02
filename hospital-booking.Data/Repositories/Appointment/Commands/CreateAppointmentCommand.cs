@@ -5,7 +5,6 @@ using Microsoft.Extensions.Logging;
 using hospital_booking.Data.Settings;
 using hospital_booking.Data.DTOs.Appointment;
 using hospital_booking.Data.Results;
-using hospital_booking.Data.Repositories.Appointment.Helpers;
 
 namespace hospital_booking.Data.Repositories.Appointment.Commands
 {
@@ -13,16 +12,15 @@ namespace hospital_booking.Data.Repositories.Appointment.Commands
     {
         private const string CreateSql = @"
 INSERT INTO dbo.appointments (patient_id, doctor_id, appointment_time, reason, status)
-OUTPUT inserted.appointment_id, inserted.patient_id, inserted.doctor_id, inserted.appointment_time, inserted.reason, inserted.status
 VALUES (@PatientId, @DoctorId, @AppointmentTime, @Reason, @Status);
 ";
 
-        public static async Task<OperationResult<AppointmentDto>> ExecuteAsync(AppointmentDto dto, ILogger logger)
+        public static async Task<OperationResult<bool>> ExecuteAsync(AppointmentAddDto dto, ILogger logger)
         {
             if (dto == null)
             {
                 logger.LogError("CreateAppointmentCommand received null dto");
-                return OperationResult<AppointmentDto>.Failure("Appointment data is required");
+                return OperationResult<bool>.Failure("Appointment data is required");
             }
 
             try
@@ -34,22 +32,20 @@ VALUES (@PatientId, @DoctorId, @AppointmentTime, @Reason, @Status);
                 command.Parameters.AddWithValue("@PatientId", dto.PatientId);
                 command.Parameters.AddWithValue("@DoctorId", dto.DoctorId);
                 command.Parameters.AddWithValue("@AppointmentTime", dto.AppointmentTime);
-                command.Parameters.AddWithValue("@Reason", dto.Reason ?? string.Empty);
-                command.Parameters.AddWithValue("@Status", dto.Status ?? "pending");
+                command.Parameters.AddWithValue("@Reason", (object)dto.Reason ?? DBNull.Value);
+                command.Parameters.AddWithValue("@Status", (object)dto.Status ?? "pending");
 
-                using var reader = await command.ExecuteReaderAsync();
-                if (!await reader.ReadAsync())
+                var rows = await command.ExecuteNonQueryAsync();
+                if (rows > 0)
                 {
-                    return OperationResult<AppointmentDto>.Failure("Appointment creation returned no result");
+                    return OperationResult<bool>.Success(true, "Appointment created successfully");
                 }
-
-                var appt = AppointmentMapper.MapFromReader(reader);
-                return OperationResult<AppointmentDto>.Success(appt, "Appointment created successfully");
+                return OperationResult<bool>.Failure("Failed to create appointment");
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Error creating appointment: {Error}", ex.Message);
-                return OperationResult<AppointmentDto>.Failure("Database operation failed");
+                return OperationResult<bool>.Failure("Database operation failed");
             }
         }
     }

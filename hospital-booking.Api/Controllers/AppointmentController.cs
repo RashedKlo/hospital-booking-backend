@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 using hospital_booking.Data.DTOs.Appointment;
 using hospital_booking.Services.Interfaces;
 using hospital_booking.Api.Responses;
+using System.Linq; // For ToList()
+using System.Threading.Tasks;
 
 namespace hospital_booking.Api.Controllers
 {
@@ -37,28 +39,28 @@ namespace hospital_booking.Api.Controllers
         }
 
         /// <summary>
-        /// Get all appointments with pagination
+        /// Get all appointments with filtering and pagination
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> GetAppointments([FromQuery] int page = 1, [FromQuery] int limit = 10)
+        public async Task<IActionResult> GetAppointments([FromQuery] AppointmentsRequestDto requestDto)
         {
-            _logger.LogInformation("Getting appointments - Page: {Page}, Limit: {Limit}", page, limit);
+            _logger.LogInformation("Getting appointments - Page: {Page}, Limit: {Limit}", requestDto.Page, requestDto.Limit);
 
-            var result = await _appointmentService.GetAppointmentsAsync(page, limit);
+            var result = await _appointmentService.GetAppointmentsAsync(requestDto);
             if (!result.IsSuccess)
             {
                 _logger.LogWarning("Failed to get appointments: {Message}", result.Message);
                 return BadRequest(new ErrorResponse(result.Message, result.Errors.ToList()));
             }
 
-            return Ok(new SuccessResponse<List<AppointmentDto>>(result.Data!, result.Message));
+            return Ok(new SuccessResponse<AppointmentsDto>(result.Data!, result.Message));
         }
 
         /// <summary>
         /// Create a new appointment
         /// </summary>
         [HttpPost]
-        public async Task<IActionResult> CreateAppointment([FromBody] AppointmentDto dto)
+        public async Task<IActionResult> CreateAppointment([FromBody] AppointmentAddDto dto)
         {
             _logger.LogInformation("Creating appointment for PatientId: {PatientId}, DoctorId: {DoctorId}", dto.PatientId, dto.DoctorId);
 
@@ -69,15 +71,15 @@ namespace hospital_booking.Api.Controllers
                 return BadRequest(new ErrorResponse(result.Message, result.Errors.ToList()));
             }
 
-            _logger.LogInformation("Appointment created successfully - AppointmentId: {AppointmentId}", result.Data?.AppointmentId);
-            return CreatedAtAction(nameof(GetAppointment), new { id = result.Data?.AppointmentId }, new SuccessResponse<AppointmentDto>(result.Data!, result.Message));
+            _logger.LogInformation("Appointment created successfully");
+            return Ok(new SuccessResponse<bool>(result.Data, result.Message));
         }
 
         /// <summary>
         /// Update an existing appointment
         /// </summary>
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateAppointment(int id, [FromBody] AppointmentDto dto)
+        public async Task<IActionResult> UpdateAppointment(int id, [FromBody] AppointmentUpdateDto dto)
         {
             _logger.LogInformation("Updating appointment: {AppointmentId}", id);
 

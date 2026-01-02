@@ -16,9 +16,11 @@ SELECT TOP (1)
     admin_id,
     full_name,
     email,
-    password,
     role,
-    is_active
+    phone,
+    is_active,
+    created_at,
+    updated_at
 FROM dbo.admins
 WHERE admin_id = @AdminId;
 ";

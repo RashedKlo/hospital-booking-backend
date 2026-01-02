@@ -12,23 +12,19 @@ namespace hospital_booking.Data.Repositories.Patient.Queries
     public class GetPatientQuery
     {
         private const string GetSql = @"
-SELECT TOP (1)
-    patient_id,
-    user_id,
-    full_name,
-    birthDate,
-    gender,
-    notes
-FROM dbo.patients
-WHERE patient_id = @PatientId;
+SELECT 
+    p.patient_id, p.user_id, p.full_name, p.birthDate, p.gender, p.notes,
+    u.user_id, u.fullname, u.email, u.isGoogleLogin
+FROM dbo.patients p
+LEFT JOIN dbo.users u ON p.user_id = u.user_id
+WHERE p.patient_id = @PatientId;
 ";
 
         public static async Task<OperationResult<PatientDto>> ExecuteAsync(int patientId, ILogger logger)
         {
             if (patientId <= 0)
             {
-                logger.LogError("GetPatientQuery received invalid id: {PatientId}", patientId);
-                return OperationResult<PatientDto>.Failure("Invalid patient id");
+                return OperationResult<PatientDto>.Failure("Invalid patient ID");
             }
 
             try

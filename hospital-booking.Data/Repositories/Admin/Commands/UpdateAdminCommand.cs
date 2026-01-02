@@ -14,18 +14,18 @@ namespace hospital_booking.Data.Repositories.Admin.Commands
         private const string UpdateSql = @"
 UPDATE dbo.admins
 SET full_name = @FullName,
-    email = @Email,
-    password = @Password,
     role = @Role,
-    is_active = @IsActive
+    phone = @Phone,
+    is_active = @IsActive,
+    updated_at = GETDATE()
 WHERE admin_id = @AdminId;
 
-SELECT admin_id, full_name, email, password, role, is_active
+SELECT admin_id, user_id, full_name, role, phone, is_active, created_at, updated_at
 FROM dbo.admins
 WHERE admin_id = @AdminId;
 ";
 
-        public static async Task<OperationResult<AdminDto>> ExecuteAsync(int adminId, AdminDto dto, ILogger logger)
+        public static async Task<OperationResult<AdminDto>> ExecuteAsync(int adminId, AdminUpdateDto dto, ILogger logger)
         {
             if (dto == null)
             {
@@ -41,9 +41,8 @@ WHERE admin_id = @AdminId;
                 using var command = new SqlCommand(UpdateSql, connection);
                 command.Parameters.AddWithValue("@AdminId", adminId);
                 command.Parameters.AddWithValue("@FullName", dto.FullName ?? string.Empty);
-                command.Parameters.AddWithValue("@Email", dto.Email ?? string.Empty);
-                command.Parameters.AddWithValue("@Password", (object?)dto.Password ?? DBNull.Value);
                 command.Parameters.AddWithValue("@Role", dto.Role ?? string.Empty);
+                command.Parameters.AddWithValue("@Phone", (object?)dto.Phone ?? DBNull.Value);
                 command.Parameters.AddWithValue("@IsActive", dto.IsActive);
 
                 using var reader = await command.ExecuteReaderAsync();

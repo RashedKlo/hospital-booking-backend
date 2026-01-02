@@ -29,10 +29,6 @@ public class UserRegistrationDto
     [StringLength(100, MinimumLength = 8, ErrorMessage = "Password must be at least 8 characters long.")]
     public string Password { get; set; } = string.Empty;
 
-    // Confirmation field to verify the password.
-    [Required(ErrorMessage = "Password confirmation is required.")]
-    [Compare("Password", ErrorMessage = "The password and confirmation password do not match.")]
-    public string ConfirmPassword { get; set; } = string.Empty;
 
 }
 
