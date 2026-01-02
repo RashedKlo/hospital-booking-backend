@@ -39,5 +39,4 @@ namespace hospital_booking.Data.DTOs.Clinic
     }
 
     }
-}
 
